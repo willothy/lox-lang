@@ -21,6 +21,10 @@ void value_array_write(ValueArray *array, Value value) {
 }
 
 void value_array_free(ValueArray *array) {
-	FREE_ARRAY(Value, array, array->capacity);
+	FREE_ARRAY(Value, array->values, array->capacity);
 	value_array_init(array);
+}
+
+void value_print(Value value) {
+	printf("%g", value);
 }
