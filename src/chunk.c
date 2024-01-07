@@ -20,7 +20,7 @@ void chunk_write(Chunk *chunk, uint8_t byte, linenr_t line) {
 	}
 
 	chunk->code[chunk->count] = byte;
-	chunk->lines[chunk->count]  = line;
+	chunk->lines[chunk->count] = line;
 	chunk->count++;
 }
 

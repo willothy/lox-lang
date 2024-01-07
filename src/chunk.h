@@ -12,10 +12,19 @@ typedef enum {
 typedef size_t linenr_t;
 
 typedef struct {
+  linenr_t line;
+  // The offset of the first instruction in tue line
+  size_t start;
+  size_t n_instructions;
+} line_t;
+
+typedef struct {
   size_t count;
   size_t capacity;
   uint8_t *code;
   ValueArray constants;
+  // TODO: replace with line_t*, append to last line_t or create new line_t
+  // when line changtes in chunk_write
   linenr_t *lines;
 } Chunk;
 
