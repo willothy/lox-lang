@@ -11,6 +11,7 @@ typedef enum {
   OP_TRUE,
   OP_FALSE,
   OP_EQUAL,
+  // TODO: add more specific comparison operators for performance
   OP_GREATER,
   OP_LESS,
   OP_NOT,

@@ -14,4 +14,6 @@
 
 void *reallocate(void *ptr, size_t old_size, size_t new_size);
 
+#define ALLOCATE(type, count) (type *)reallocate(NULL, 0, count * sizeof(type))
+
 #endif

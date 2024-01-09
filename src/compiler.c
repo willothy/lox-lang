@@ -3,6 +3,7 @@
 
 #include "common.h"
 #include "compiler.h"
+#include "object.h"
 #include "scanner.h"
 #include "chunk.h"
 
@@ -105,8 +106,8 @@ static void emit_return() {
 	emit_byte(OP_RETURN);
 }
 
-static void emit_constant(double value) {
-	chunk_write_constant(current_chunk(), NUMBER_VAL(value), parser.previous.line);
+static void emit_constant(value_t value) {
+	chunk_write_constant(current_chunk(), value, parser.previous.line);
 }
 
 static void end_compilation() {
@@ -126,7 +127,7 @@ static parse_rule_t *get_rule(token_type_t type);
 
 static void number() {
 	double value = strtod(parser.previous.start, NULL);
-	emit_constant(value);
+	emit_constant(NUMBER_VAL(value));
 }
 
 static void parse_precedence(precedence_t precedence) {
@@ -191,6 +192,11 @@ static void literal() {
 	}
 }
 
+
+static void string() {
+	emit_constant(OBJ_VAL(copy_string(parser.previous.start + 1, parser.previous.length-2)));
+}
+
 parse_rule_t rules[] = {
 	[TOKEN_LEFT_PAREN]    = {grouping, NULL,   PREC_NONE},
 	[TOKEN_RIGHT_PAREN]   = {NULL,     NULL,   PREC_NONE},
@@ -212,7 +218,7 @@ parse_rule_t rules[] = {
 	[TOKEN_LESS]          = {NULL,     binary,   PREC_NONE},
 	[TOKEN_LESS_EQUAL]    = {NULL,     binary,   PREC_NONE},
 	[TOKEN_IDENTIFIER]    = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_STRING]        = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_STRING]        = {string,   NULL,   PREC_NONE},
 	[TOKEN_NUMBER]        = {number,   NULL,   PREC_NONE},
 	[TOKEN_AND]           = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_CLASS]         = {NULL,     NULL,   PREC_NONE},
