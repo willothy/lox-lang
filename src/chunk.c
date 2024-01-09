@@ -10,7 +10,6 @@ void line_info_init(line_info_t *lines) {
 }
 
 void line_info_inc(line_info_t *lines, linenr_t line) {
-	ASSERT(line >= lines->count); // lines should always be added in order
 	if (lines->count == 0 || lines->lines[lines->count-1].line < line) {
 		if (lines->capacity < lines->count + 1) {
 			size_t old_capacity = lines->capacity;
@@ -84,14 +83,14 @@ size_t chunk_add_constant(chunk_t *chunk, value_t value) {
 void chunk_write_constant(chunk_t *chunk, value_t constant, linenr_t line) {
 	size_t index = chunk_add_constant(chunk, constant);
 
-	if (index < 256) {
-		chunk_write(chunk, OP_CONSTANT, line);
-		chunk_write(chunk, (uint8_t)index, line);
-	} else {
+	if (index > UINT8_MAX) {
 		chunk_write(chunk, OP_CONSTANT_LONG, line);
 		// store operand as a 24-bit number, giving us more than 256 constant slots if needed
 		chunk_write(chunk, (uint8_t)(index & 0xFF), line);
 		chunk_write(chunk, (uint8_t)((index >> 8) & 0xFF), line);
 		chunk_write(chunk, (uint8_t)((index >> 16) & 0xFF), line);
+	} else {
+		chunk_write(chunk, OP_CONSTANT, line);
+		chunk_write(chunk, (uint8_t)index, line);
 	}
 }

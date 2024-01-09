@@ -20,12 +20,12 @@ typedef struct {
   size_t stack_size;
 } VM;
 
-void vm_init();
+char *vm_init();
 void vm_free();
 
 void vm_push(value_t value);
 value_t vm_pop();
 
-interpret_result_t vm_interpret(chunk_t *chunk);
+interpret_result_t vm_interpret(const char *source);
 
 #endif

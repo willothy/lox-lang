@@ -4,6 +4,7 @@
 #include "debug.h"
 #include "memory.h"
 #include "vm.h"
+#include "compiler.h"
 
 VM vm;
 
@@ -11,10 +12,14 @@ static void reset_stack() {
 	vm.stack_top = vm.stack;
 }
 
-void vm_init() {
+char *vm_init() {
 	vm.stack = GROW_ARRAY(value_t, vm.stack, 0, STACK_INITIAL);
+	if (!vm.stack) {
+		return "Could not allocate memory for stack";
+	}
 	vm.stack_size = STACK_INITIAL;
 	reset_stack();
+	return NULL;
 }
 
 void vm_free() {
@@ -55,15 +60,19 @@ static interpret_result_t run() {
 			vm_push(a op b); \
 		} while (false)
 
+	#ifdef DEBUG_TRACE_EXECUTION
+	printf("== trace ==\n");
+	#endif
+
 	for (;;) {
     #ifdef DEBUG_TRACE_EXECUTION
-		printf("  stack:  ");
+		printf("stack:  ");
 		for (value_t* slot = vm.stack; slot < vm.stack_top; slot++) {
 			printf("[ ");
 			value_print(*slot);
 			printf(" ]");
 		}
-		printf("\n");
+		printf("\n---\n");
 		disassemble_instruction(vm.chunk, (size_t)(vm.ip - vm.chunk->code));
     #endif
 
@@ -120,8 +129,24 @@ static interpret_result_t run() {
 	#undef BINARY_OP
 }
 
-interpret_result_t vm_interpret(chunk_t *chunk) {
-	vm.chunk = chunk;
+interpret_result_t vm_interpret(const char *src) {
+	chunk_t chunk;
+	chunk_init(&chunk);
+
+	if (!compile(src, &chunk)) {
+		chunk_free(&chunk);
+		return INTERPRET_COMPILE_ERROR;
+	}
+
+	vm.chunk = &chunk;
 	vm.ip = vm.chunk->code;
-	return run();
+
+	interpret_result_t res = run();
+
+	vm.chunk = NULL;
+	vm.ip = NULL;
+
+	chunk_free(&chunk);
+
+	return res;
 }
