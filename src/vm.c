@@ -23,12 +23,17 @@ void vm_free() {
 
 void vm_push(value_t value) {
 	if (vm.stack_top - vm.stack == vm.stack_size) {
-		printf("stack overflow, growing\n");
 		size_t top = (size_t)vm.stack_top - (size_t)vm.stack;
 		size_t old_size = vm.stack_size;
 		size_t new_size = GROW_CAPACITY(old_size);
+
+		#ifdef DEBUG_TRACE_EXECUTION
+		printf("stack overflow at %zu, growing to %zu\n", old_size, new_size);
+		#endif
+
 		vm.stack = GROW_ARRAY(value_t, vm.stack, old_size, new_size);
 		vm.stack_size = new_size;
+		// Update stack_top in case the location of the stack array changed due to realloc
 		vm.stack_top = (value_t*)((size_t)vm.stack + ((size_t)top) * sizeof(value_t));
 	}
 	*vm.stack_top = value;
