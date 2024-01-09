@@ -17,5 +17,9 @@ typedef struct {
 
 void table_init(table_t *table);
 void table_free(table_t *table);
+void table_add_all(table_t *from, table_t *to);
+bool table_set(table_t *table, object_string_t *key, value_t value);
+bool table_get(table_t *table, object_string_t *key, value_t *value);
+bool table_delete(table_t *table, object_string_t *key);
 
 #endif

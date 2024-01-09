@@ -34,6 +34,7 @@ struct object_t {
 struct object_string_t {
   object_t object;
   size_t length;
+  uint32_t hash;
   char *chars;
 };
 

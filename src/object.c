@@ -18,10 +18,23 @@ static object_t* allocate_object(size_t size, object_type_t type, bool owned) {
 	return obj;
 }
 
+
+// fnv-1a hash function
+static uint32_t hash_string(const char *key, size_t length) {
+	uint32_t hash = 2166136261u;
+	for(size_t i = 0; i < length; i++) {
+		hash ^= key[i];
+		hash *= 16777619;
+	}
+	return hash;
+}
+
 static object_string_t* alloc_string(char *chars, size_t length, bool owned) {
+	uint32_t hash = hash_string(chars, length);
 	object_string_t *str = ALLOCATE_OBJ(object_string_t, OBJ_STRING, owned);
 	str->length = length;
 	str->chars  = chars;
+	str->hash   = hash;
 	return str;
 }
 
@@ -37,7 +50,7 @@ object_string_t* ref_string(char *chars, size_t length) {
 }
 
 object_string_t *take_string(char *chars, size_t length) {
-	return alloc_string(chars, length, true);
+	return alloc_string(chars, length,  true);
 }
 
 void object_print(value_t val) {
