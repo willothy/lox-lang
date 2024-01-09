@@ -1,6 +1,8 @@
+#include <stdio.h>
+
 #include "common.h"
 #include "debug.h"
-#include <stdio.h>
+#include "memory.h"
 #include "vm.h"
 
 VM vm;
@@ -10,14 +12,25 @@ static void reset_stack() {
 }
 
 void vm_init() {
+	vm.stack = GROW_ARRAY(value_t, vm.stack, 0, STACK_INITIAL);
+	vm.stack_size = STACK_INITIAL;
 	reset_stack();
 }
 
 void vm_free() {
-	// todo
+	FREE_ARRAY(value_t, vm.stack, vm.stack_size);
 }
 
 void vm_push(value_t value) {
+	if (vm.stack_top - vm.stack == vm.stack_size) {
+		printf("stack overflow, growing\n");
+		size_t top = (size_t)vm.stack_top - (size_t)vm.stack;
+		size_t old_size = vm.stack_size;
+		size_t new_size = GROW_CAPACITY(old_size);
+		vm.stack = GROW_ARRAY(value_t, vm.stack, old_size, new_size);
+		vm.stack_size = new_size;
+		vm.stack_top = (value_t*)((size_t)vm.stack + ((size_t)top) * sizeof(value_t));
+	}
 	*vm.stack_top = value;
 	vm.stack_top++;
 }
@@ -30,6 +43,12 @@ value_t vm_pop() {
 static interpret_result_t run() {
   #define READ_BYTE() (*vm.ip++)
   #define READ_CONSTANT() (vm.chunk->constants.values[READ_BYTE()])
+	#define BINARY_OP(op) \
+		do { \
+			double b = vm_pop(); \
+			double a = vm_pop(); \
+			vm_push(a op b); \
+		} while (false)
 
 	for (;;) {
     #ifdef DEBUG_TRACE_EXECUTION
@@ -59,6 +78,26 @@ static interpret_result_t run() {
 			vm_push(constant);
 			break;
 		}
+		case OP_ADD: {
+			BINARY_OP(+);
+			break;
+		}
+		case OP_SUBTRACT: {
+			BINARY_OP(-);
+			break;
+		}
+		case OP_MULTIPLY: {
+			BINARY_OP(*);
+			break;
+		}
+		case OP_DIVIDE: {
+			BINARY_OP(/);
+			break;
+		}
+		// case OP_MODULO: {
+		// 	BINARY_OP(%);
+		// 	break;
+		// }
 		case OP_NEGATE: {
 			vm_push(-vm_pop());
 			break;
@@ -73,6 +112,7 @@ static interpret_result_t run() {
 
   #undef READ_BYTE
   #undef READ_CONSTANT
+	#undef BINARY_OP
 }
 
 interpret_result_t vm_interpret(chunk_t *chunk) {
