@@ -37,12 +37,10 @@ void line_info_free(line_info_t *lines) {
 }
 
 linenr_t line_info_get (const line_info_t *lines, size_t offset) {
-	// ASSERT(offset < lines->lines[lines->count-1].start + lines->lines[lines->count-1].len);
 	linenr_t linenr = 0;
 	for (size_t i = 0; i < lines->count; i++) {
 		line_t *line = &lines->lines[i];
 		linenr = line->line;
-		printf("offset %zu, line %zu, start %zu, len %zu\n", offset, line->line, line->start, line->len);
 		if (offset >= line->start && offset < line->start + line->len) {
 			break;
 		}
@@ -65,11 +63,9 @@ void chunk_write(Chunk *chunk, uint8_t byte, linenr_t line) {
 		chunk->code = GROW_ARRAY(uint8_t, chunk->code, old_capacity, chunk->capacity);
 	}
 
-	// chunk->lines = GROW_ARRAY(line_t, chunk->lines, old_capacity, chunk->capacity);
 	line_info_inc(&chunk->lines, line);
 
 	chunk->code[chunk->count] = byte;
-	// chunk->lines[chunk->count] = line;
 	chunk->count++;
 }
 
