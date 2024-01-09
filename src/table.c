@@ -3,8 +3,8 @@
 
 #include "memory.h"
 #include "table.h"
-#include "value.h"
 #include "object.h"
+#include "value.h"
 
 #define TABLE_MAX_LOAD 0.75
 
@@ -122,4 +122,26 @@ bool table_delete(table_t *table, object_string_t *key) {
 	entry->key = NULL;
 	entry->value = BOOL_VAL(true);
 	return true;
+}
+
+object_string_t* table_find_string(table_t *table, const char *chars, size_t length, uint32_t hash) {
+	if (table->count == 0) {
+		return NULL;
+	}
+	uint32_t index = hash % table->capacity;
+	for (;;) {
+		entry_t *entry = &table->entries[index];
+		if (entry->key == NULL) {
+			// stop if we find an empty non-tombstone entry
+			if (IS_NIL(entry->value)) {
+				return NULL;
+			};
+		} else if (entry->key->length == length &&
+		           entry->key->hash == hash &&
+		           memcmp(entry->key->chars, chars, length) == 0) {
+			// found the string
+			return entry->key;
+		}
+		index = (index + 1) % table->capacity;
+	}
 }

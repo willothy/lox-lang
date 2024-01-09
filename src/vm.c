@@ -24,11 +24,13 @@ char *vm_init() {
 	vm.stack_size = STACK_INITIAL;
 	reset_stack();
 	vm.objects = NULL;
+	table_init(&vm.strings);
 	return NULL;
 }
 
 void vm_free() {
 	FREE_ARRAY(value_t, vm.stack, vm.stack_size);
+	table_free(&vm.strings);
 	free_objects();
 }
 

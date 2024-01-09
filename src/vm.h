@@ -3,6 +3,7 @@
 
 #include "chunk.h"
 #include "object.h"
+#include "table.h"
 #include "value.h"
 
 #define STACK_INITIAL 256
@@ -20,6 +21,7 @@ typedef struct {
   value_t *stack;
   size_t stack_size;
   object_t *objects;
+  table_t strings;
 } VM;
 
 extern VM vm;

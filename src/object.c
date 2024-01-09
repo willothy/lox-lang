@@ -29,28 +29,49 @@ static uint32_t hash_string(const char *key, size_t length) {
 	return hash;
 }
 
-static object_string_t* alloc_string(char *chars, size_t length, bool owned) {
-	uint32_t hash = hash_string(chars, length);
+static object_string_t* alloc_string(char *chars, size_t length, uint32_t hash, bool owned) {
 	object_string_t *str = ALLOCATE_OBJ(object_string_t, OBJ_STRING, owned);
 	str->length = length;
 	str->chars  = chars;
 	str->hash   = hash;
+	table_set(&vm.strings, str, NIL_VAL);
 	return str;
 }
 
 object_string_t* copy_string(const char *chars, size_t length) {
+	uint32_t hash = hash_string(chars, length);
+	object_string_t *interned = table_find_string(&vm.strings, chars, length, hash);
+	if (interned != NULL) {
+		return interned;
+	}
+
 	char *heap_chars = ALLOCATE(char, length + 1);
 	memcpy(heap_chars, chars, length);
 	heap_chars[length] = '\0';
-	return alloc_string(heap_chars, length, true);
+	return alloc_string(heap_chars, length, hash, true);
 }
 
 object_string_t* ref_string(char *chars, size_t length) {
-	return alloc_string(chars, length, false);
+	uint32_t hash = hash_string(chars, length);
+	object_string_t *interned = table_find_string(&vm.strings, chars, length, hash);
+	if (interned != NULL) {
+		// If the string is already interned, we should use the interned version
+		// to ensure equality checks work correctly.
+		//
+		// Because the string's memory is not owned by the VM, we do not need to free it.
+		return interned;
+	}
+	return alloc_string(chars, length, hash, false);
 }
 
 object_string_t *take_string(char *chars, size_t length) {
-	return alloc_string(chars, length,  true);
+	uint32_t hash = hash_string(chars, length);
+	object_string_t *interned = table_find_string(&vm.strings, chars, length, hash);
+	if (interned != NULL) {
+		FREE_ARRAY(char, chars, length + 1);
+		return interned;
+	}
+	return alloc_string(chars, length, hash, true);
 }
 
 void object_print(value_t val) {
