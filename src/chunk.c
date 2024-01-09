@@ -18,7 +18,7 @@ void line_info_inc(line_info_t *lines, linenr_t line) {
 			lines->lines = GROW_ARRAY(line_t, lines->lines, old_capacity, lines->capacity);
 		}
 		size_t start = 0;
-		if (line > 0) {
+		if (lines->count > 0) {
 			start = lines->lines[lines->count - 1].start + lines->lines[lines->count - 1].len;
 		}
 		lines->lines[lines->count] = (line_t) {
@@ -41,7 +41,7 @@ linenr_t line_info_get (const line_info_t *lines, size_t offset) {
 	for (size_t i = 0; i < lines->count; i++) {
 		line_t *line = &lines->lines[i];
 		linenr = line->line;
-		if (offset >= line->start && offset < line->start + line->len) {
+		if (offset >= line->start && offset < line->start + line->len)  {
 			break;
 		}
 	}
@@ -79,4 +79,19 @@ void chunk_free(Chunk *chunk) {
 size_t chunk_add_constant(Chunk *chunk, Value value) {
 	value_array_write(&chunk->constants, value);
 	return chunk->constants.count - 1;
+}
+
+void chunk_write_constant(Chunk *chunk, Value constant, linenr_t line) {
+	size_t index = chunk_add_constant(chunk, constant);
+
+	if (index < 256) {
+		chunk_write(chunk, OP_CONSTANT, line);
+		chunk_write(chunk, (uint8_t)index, line);
+	} else {
+		chunk_write(chunk, OP_CONSTANT_LONG, line);
+		// store operand as a 24-bit number, giving us more than 256 constant slots if needed
+		chunk_write(chunk, (uint8_t)(index & 0xFF), line);
+		chunk_write(chunk, (uint8_t)((index >> 8) & 0xFF), line);
+		chunk_write(chunk, (uint8_t)((index >> 16) & 0xFF), line);
+	}
 }
