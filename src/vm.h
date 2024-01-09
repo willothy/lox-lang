@@ -2,6 +2,7 @@
 #define clox_vm_h
 
 #include "chunk.h"
+#include "object.h"
 #include "value.h"
 
 #define STACK_INITIAL 256
@@ -18,7 +19,10 @@ typedef struct {
   value_t *stack_top;
   value_t *stack;
   size_t stack_size;
+  object_t *objects;
 } VM;
+
+extern VM vm;
 
 char *vm_init();
 void vm_free();

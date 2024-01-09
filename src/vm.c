@@ -1,11 +1,13 @@
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "common.h"
 #include "debug.h"
 #include "memory.h"
 #include "vm.h"
 #include "compiler.h"
+#include "object.h"
 #include "value.h"
 
 VM vm;
@@ -21,11 +23,13 @@ char *vm_init() {
 	}
 	vm.stack_size = STACK_INITIAL;
 	reset_stack();
+	vm.objects = NULL;
 	return NULL;
 }
 
 void vm_free() {
 	FREE_ARRAY(value_t, vm.stack, vm.stack_size);
+	free_objects();
 }
 
 void vm_push(value_t value) {
@@ -67,6 +71,20 @@ static void runtime_error(const char *format,...) {
 	linenr_t line = line_info_get(&vm.chunk->lines, inst);
 	fprintf(stderr, "[line %zu] in script\n", line);
 	reset_stack();
+}
+
+static void concatonate() {
+	object_string_t *a = AS_STRING(vm_pop());
+	object_string_t *b = AS_STRING(vm_pop());
+
+	size_t length = a->length + b->length;
+	char *chars = ALLOCATE(char, length + 1);
+	memcpy(chars, a->chars, a->length);
+	memcpy(chars + a->length, b->chars, b->length);
+	chars[length] = '\0';
+
+	object_string_t *result = take_string(chars, length);
+	vm_push(OBJ_VAL(result));
 }
 
 static interpret_result_t run() {
@@ -146,6 +164,17 @@ static interpret_result_t run() {
 		}
 		case OP_ADD: {
 			BINARY_OP(NUMBER_VAL, +);
+			if (IS_STRING(vm_peek(0)) && IS_STRING(vm_peek(1))) {
+				concatonate();
+			} else if (IS_NUMBER(vm_peek(0)) && IS_NUMBER(vm_peek(1))) {
+				double b = AS_NUMBER(vm_pop());
+				double a = AS_NUMBER(vm_pop());
+				vm_push(NUMBER_VAL(a + b));
+			} else {
+				runtime_error( "Operands must be two numbers or two strings.");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+			break;
 			break;
 		}
 		case OP_SUBTRACT: {

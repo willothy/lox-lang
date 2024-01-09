@@ -192,9 +192,9 @@ static void literal() {
 	}
 }
 
-
 static void string() {
-	emit_constant(OBJ_VAL(copy_string(parser.previous.start + 1, parser.previous.length-2)));
+	object_string_t *str = ref_string((char*)parser.previous.start + 1, parser.previous.length-2);
+	emit_constant(OBJ_VAL(str));
 }
 
 parse_rule_t rules[] = {
