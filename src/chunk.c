@@ -48,7 +48,7 @@ linenr_t line_info_get (const line_info_t *lines, size_t offset) {
 	return linenr;
 }
 
-void chunk_init(Chunk *chunk) {
+void chunk_init(chunk_t *chunk) {
 	chunk->count = 0;
 	chunk->capacity = 0;
 	chunk->code = NULL;
@@ -56,7 +56,7 @@ void chunk_init(Chunk *chunk) {
 	value_array_init(&chunk->constants);
 }
 
-void chunk_write(Chunk *chunk, uint8_t byte, linenr_t line) {
+void chunk_write(chunk_t *chunk, uint8_t byte, linenr_t line) {
 	if (chunk->capacity < chunk->count + 1) {
 		size_t old_capacity = chunk->capacity;
 		chunk->capacity = GROW_CAPACITY(old_capacity);
@@ -69,19 +69,19 @@ void chunk_write(Chunk *chunk, uint8_t byte, linenr_t line) {
 	chunk->count++;
 }
 
-void chunk_free(Chunk *chunk) {
+void chunk_free(chunk_t *chunk) {
 	FREE_ARRAY(uint8_t, chunk->code, chunk->capacity);
 	value_array_free(&chunk->constants);
 	line_info_free(&chunk->lines);
 	chunk_init(chunk);
 }
 
-size_t chunk_add_constant(Chunk *chunk, Value value) {
+size_t chunk_add_constant(chunk_t *chunk, value_t value) {
 	value_array_write(&chunk->constants, value);
 	return chunk->constants.count - 1;
 }
 
-void chunk_write_constant(Chunk *chunk, Value constant, linenr_t line) {
+void chunk_write_constant(chunk_t *chunk, value_t constant, linenr_t line) {
 	size_t index = chunk_add_constant(chunk, constant);
 
 	if (index < 256) {
