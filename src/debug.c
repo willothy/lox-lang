@@ -9,11 +9,21 @@ static size_t simple_instruction(const char *name, size_t offset) {
 }
 
 static size_t constant_instruction(const char* name, chunk_t *chunk, int offset) {
-	uint8_t constant = chunk->code[offset  + 1];
-	printf("%-16s %4d '", name, constant);
-	value_print(chunk->constants.values[constant]);
+	uint8_t idx = chunk->code[offset  + 1];
+	printf("%-16s %4d '", name, idx);
+	value_print(chunk->constants.values[idx]);
 	printf("'\n");
 	return offset + 2;
+}
+
+static size_t constant_long_instruction(const char* name, chunk_t *chunk, int offset) {
+	uint32_t idx = chunk->code[offset  + 1];
+	idx |= (uint16_t)chunk->code[offset + 2] << 8;
+	idx |= (uint16_t)chunk->code[offset + 3] << 16;
+	printf("%-16s %4d '", name, idx);
+	value_print(chunk->constants.values[idx]);
+	printf("'\n");
+	return offset + 4;
 }
 
 void disassemble_chunk(chunk_t *chunk, const char *name) {
@@ -43,6 +53,10 @@ size_t disassemble_instruction(chunk_t *chunk, size_t offset) {
 		return simple_instruction("OP_RETURN", offset);
 	case OP_CONSTANT:
 		return constant_instruction("OP_CONSTANT", chunk, offset);
+	case OP_CONSTANT_LONG:
+		return constant_long_instruction("OP_CONSTANT_LONG", chunk, offset);
+	case OP_NEGATE:
+		return simple_instruction("OP_NEGATE", offset);
 	default:
 		printf("Unknown opcode %d\n", instruction);
 		return offset + 1;
