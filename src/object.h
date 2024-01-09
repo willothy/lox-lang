@@ -28,6 +28,9 @@ struct object_t {
 // TODO: use [flexible array
 // members](https://en.wikipedia.org/wiki/Flexible_array_member) to reduce
 // indirection.
+//
+// TODO: implement utf-8 strings, with codepoint indexing. This will require
+// some changes to the scanner and string literal parsing.
 struct object_string_t {
   object_t object;
   size_t length;
