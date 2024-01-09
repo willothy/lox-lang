@@ -1,5 +1,5 @@
 
-.PHONY: run build clean
+.PHONY: run build clean test
 
 run: build
 	./clox

@@ -5,12 +5,13 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #define ASSERT(expr)                                                           \
   do {                                                                         \
     if (!(expr)) {                                                             \
       printf("Assertion failed: %s\n", #expr);                                 \
-      exit(1);                                                                 \
+      abort();                                                                 \
     }                                                                          \
   } while (false)
 
