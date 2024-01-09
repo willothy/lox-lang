@@ -27,13 +27,14 @@ void disassemble_chunk(Chunk *chunk, const char *name) {
 size_t disassemble_instruction(Chunk *chunk, size_t offset) {
 	printf("%04zu ", offset);
 
-	if (offset > 0 && chunk->lines [offset] == chunk->lines[offset-1]) {
-		for (int pad=0; pad < chunk->lines[offset] % 10; pad++) {
+	linenr_t linenr = line_info_get(&chunk->lines, offset);
+	if (offset > 0 && linenr == line_info_get(&chunk->lines, offset - 1)) {
+		for (int pad=0; pad < linenr % 10; pad++) {
 			printf(" ");
 		}
 		printf("| ");
 	} else {
-		printf("%4zu ", chunk->lines[offset]);
+		printf("%4zu ", linenr);
 	}
 
 	uint8_t instruction = chunk->code[offset];
