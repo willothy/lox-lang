@@ -25,6 +25,7 @@ void vm_free();
 
 void vm_push(value_t value);
 value_t vm_pop();
+value_t vm_peek(size_t distance);
 
 interpret_result_t vm_interpret(const char *source);
 

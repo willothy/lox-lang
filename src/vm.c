@@ -1,3 +1,4 @@
+#include <stdarg.h>
 #include <stdio.h>
 
 #include "common.h"
@@ -5,6 +6,7 @@
 #include "memory.h"
 #include "vm.h"
 #include "compiler.h"
+#include "value.h"
 
 VM vm;
 
@@ -50,14 +52,35 @@ value_t vm_pop() {
 	return *vm.stack_top;
 }
 
+value_t vm_peek(size_t distance) {
+	return vm.stack_top[-1 - distance];
+}
+
+static void runtime_error(const char *format,...) {
+	va_list args;
+	va_start(args, format);
+	vfprintf(stderr, format, args);
+	va_end(args);
+	fputs("\n", stderr);
+
+	size_t inst = vm.ip - vm.chunk->code - 1;
+	linenr_t line = line_info_get(&vm.chunk->lines, inst);
+	fprintf(stderr, "[line %zu] in script\n", line);
+	reset_stack();
+}
+
 static interpret_result_t run() {
   #define READ_BYTE() (*vm.ip++)
   #define READ_CONSTANT() (vm.chunk->constants.values[READ_BYTE()])
-	#define BINARY_OP(op) \
+	#define BINARY_OP(value_type, op) \
+		if (!IS_NUMBER(vm_peek(0)) || !IS_NUMBER(vm_peek(1))) { \
+			runtime_error("Operands must be numbers."); \
+			return INTERPRET_RUNTIME_ERROR; \
+		} \
 		do { \
-			double b = vm_pop(); \
-			double a = vm_pop(); \
-			vm_push(a op b); \
+			double b = AS_NUMBER(vm_pop()); \
+			double a = AS_NUMBER(vm_pop()); \
+			vm_push(value_type(a op b)); \
 		} while (false)
 
 	#ifdef DEBUG_TRACE_EXECUTION
@@ -72,7 +95,6 @@ static interpret_result_t run() {
 			value_print(*slot);
 			printf(" ]");
 		}
-		printf("\n---\n");
 		disassemble_instruction(vm.chunk, (size_t)(vm.ip - vm.chunk->code));
     #endif
 
@@ -92,20 +114,50 @@ static interpret_result_t run() {
 			vm_push(constant);
 			break;
 		}
+		case OP_NIL: {
+			vm_push(NIL_VAL);
+			break;
+		}
+		case OP_TRUE: {
+			vm_push(BOOL_VAL(true));
+			break;
+		}
+		case OP_FALSE: {
+			vm_push(BOOL_VAL(false));
+			break;
+		}
+		case OP_NOT: {
+			vm_push(BOOL_VAL(IS_FALSY(vm_pop())));
+			break;
+		}
+		case OP_EQUAL: {
+			value_t a = vm_pop();
+			value_t b = vm_pop();
+			vm_push(BOOL_VAL(value_equal(a, b)));
+			break;
+		}
+		case OP_GREATER: {
+			BINARY_OP(BOOL_VAL, >);
+			break;
+		}
+		case OP_LESS: {
+			BINARY_OP(BOOL_VAL, <);
+			break;
+		}
 		case OP_ADD: {
-			BINARY_OP(+);
+			BINARY_OP(NUMBER_VAL, +);
 			break;
 		}
 		case OP_SUBTRACT: {
-			BINARY_OP(-);
+			BINARY_OP(NUMBER_VAL, -);
 			break;
 		}
 		case OP_MULTIPLY: {
-			BINARY_OP(*);
+			BINARY_OP(NUMBER_VAL, *);
 			break;
 		}
 		case OP_DIVIDE: {
-			BINARY_OP(/);
+			BINARY_OP(NUMBER_VAL, /);
 			break;
 		}
 		// case OP_MODULO: {
@@ -113,7 +165,11 @@ static interpret_result_t run() {
 		// 	break;
 		// }
 		case OP_NEGATE: {
-			vm_push(-vm_pop());
+			if (!IS_NUMBER(vm_peek(0))) {
+				runtime_error("Operand must be a number");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+			vm_push(NUMBER_VAL(-AS_NUMBER(vm_pop())));
 			break;
 		}
 		case OP_RETURN: {
