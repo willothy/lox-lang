@@ -3,12 +3,7 @@
 
 #include "common.h"
 
-typedef enum ValueType {
-  VAL_BOOL,
-  VAL_NIL,
-  VAL_NUMBER,
-  VAL_OBJ
-} ValueType;
+typedef enum ValueType { VAL_BOOL, VAL_NIL, VAL_NUMBER, VAL_OBJ } ValueType;
 
 typedef struct Object Object;
 typedef struct ObjectString ObjectString;
@@ -38,7 +33,7 @@ typedef struct {
 #define IS_NUMBER(value) ((value).type == VAL_NUMBER)
 #define IS_OBJ(value) ((value).type == VAL_OBJ)
 
-#define IS_FALSY(value) (IS_NIL(value) || (IS_BOOL(value) && !AS_BOOL(value)))
+#define IS_FALSY(value) (value_is_falsy(value))
 
 typedef struct {
   size_t count;
@@ -54,5 +49,6 @@ void value_print(Value value);
 void value_println(Value value);
 
 bool value_equal(Value a, Value b);
+bool value_is_falsy(Value value);
 
 #endif

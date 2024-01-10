@@ -94,6 +94,8 @@ static void concatonate() {
 
 static InterpretResult run() {
   #define READ_BYTE() (*vm.ip++)
+	#define READ_WORD() (vm.ip += 2, (uint16_t)((vm.ip[-2] << 8) | vm.ip[-1]))
+	#define READ_DWORD() (vm.ip += 4, (uint32_t)((vm.ip[-4] << 24) | (vm.ip[-3] << 16) | (vm.ip[-2] << 8) | vm.ip[-1]))
   #define READ_CONSTANT() (vm.chunk->constants.values[READ_BYTE()])
 	#define READ_CONSTANT_LONG()    \
 		(vm.chunk->constants.values[READ_BYTE() | (READ_BYTE() << 8) | (READ_BYTE() << 16)])
@@ -299,10 +301,26 @@ static InterpretResult run() {
 			value_println(vm_pop());
 			break;
 		}
+		case OP_JUMP: {
+			vm.ip += READ_DWORD();
+			break;
+		}
+		case OP_JUMP_IF_FALSE: {
+			uint32_t offset = READ_DWORD();
+			vm.ip += (value_is_falsy(vm_peek(0)) * offset);
+			break;
+		}
+		case OP_LOOP: {
+			uint32_t offset = READ_DWORD();
+			vm.ip -= offset;
+			break;
+		}
 		}
 	}
 
   #undef READ_BYTE
+	#undef READ_WORD
+	#undef READ_DWORD
   #undef READ_CONSTANT
 	#undef READ_CONSTANT_LONG
 	#undef BINARY_OP

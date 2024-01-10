@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -115,6 +116,42 @@ static void emit_bytes(uint32_t byte1, uint32_t byte2) {
 	emit_byte(byte2);
 }
 
+static void emit_loop(uint32_t loop_start) {
+	emit_byte(OP_LOOP);
+	uint32_t offset = current_chunk()->count - loop_start + 4;
+	if (offset > UINT32_MAX) {
+		error("Loop body too large.");
+	}
+	emit_byte((offset >> 24) & 0xff);
+	emit_byte((offset >> 16) & 0xff);
+	emit_byte((offset >> 8) & 0xff);
+	emit_byte(offset & 0xff);
+}
+
+static uint32_t emit_jump(uint8_t instruction) {
+	emit_byte(instruction);
+	// The source implementation uses a 16-bit offset, but I'm using 32 bits.
+	emit_byte(0xff);
+	emit_byte(0xff);
+	emit_byte(0xff);
+	emit_byte(0xff);
+	return current_chunk()->count - 4;
+}
+
+static void patch_jump(uint32_t offset) {
+	Chunk *chunk = current_chunk();
+	uint32_t jump = chunk->count - offset - 4;
+
+	if (jump > UINT32_MAX) {
+		error("Too much code to jump over.");
+	}
+
+	chunk->code[offset]     = (jump >> 24) & 0xff;
+	chunk->code[offset + 1] = (jump >> 16) & 0xff;
+	chunk->code[offset + 2] = (jump >> 8) & 0xff;
+	chunk->code[offset + 3] = jump & 0xff;
+}
+
 static void emit_return() {
 	emit_byte(OP_RETURN);
 }
@@ -190,6 +227,32 @@ static void expression_statement() {
 	expression();
 	consume(TOKEN_SEMICOLON, "Expect ';' after expression.");
 	emit_byte(OP_POP);
+}
+
+static void if_statement() {
+	// TODO: The source implementation requires parentheses around the condition.
+	// My version of Lox will not.
+	consume(TOKEN_LEFT_PAREN, "Expect '(' after 'if'.");
+	// TODO: support nil-matching / := / if let expr
+	expression();
+	consume(TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
+
+	uint32_t then_jump = emit_jump(OP_JUMP_IF_FALSE);
+	emit_byte(OP_POP);
+	// TODO: support expression result from if statements in expr position
+	statement();
+
+	uint32_t else_jump = emit_jump(OP_JUMP);
+
+	patch_jump(then_jump);
+
+	emit_byte(OP_POP);
+
+	if (match(TOKEN_ELSE)) {
+		statement();
+	}
+
+	patch_jump(else_jump);
 }
 
 static void print_statement() {
@@ -323,14 +386,6 @@ static void declaration() {
 	if (parser.panic_mode) synchronize();
 }
 
-static void block() {
-	while (!check(TOKEN_RIGHT_BRACE) &&!check(TOKEN_EOF)) {
-		declaration();
-	}
-
-	consume(TOKEN_RIGHT_BRACE, "Expect '}' after block.");
-}
-
 static void begin_scope() {
 	current->scope_depth++;
 }
@@ -350,9 +405,113 @@ static void end_scope() {
 	}
 }
 
+static void while_statement() {
+	size_t loop_start = current_chunk()->count;
+
+	// TODO: Don't require parentheses around the condition.
+	consume(TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
+	expression();
+	consume(TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
+
+	uint32_t exit_jump = emit_jump(OP_JUMP_IF_FALSE);
+	emit_byte(OP_POP);
+	statement();
+	emit_loop(loop_start);
+
+	patch_jump(exit_jump);
+	emit_byte(OP_POP);
+}
+
+// TODO: Better numeric for syntax, for in syntax with ranges.
+// TODO: Support break and continue.
+//        - Support labeled blocks.
+//        - Support break with value.
+// TODO: Support match statements / exprs.
+// TODO: Support conditionless loops in expression position.
+static void for_statement() {
+	begin_scope();
+	// TODO: Don't require parentheses.
+	consume(TOKEN_LEFT_PAREN, "Expect '(' after 'for'.");
+	if (match(TOKEN_SEMICOLON)) {
+		// No initializer.
+	} else if (match(TOKEN_VAR)) {
+		var_declaration();
+	} else {
+		expression_statement();
+	}
+
+	uint32_t loop_start = current_chunk()->count;
+
+	uint32_t exit_jump = 0;
+	bool has_condition = !match(TOKEN_SEMICOLON);
+	if (has_condition) {
+		expression();
+		consume(TOKEN_SEMICOLON, "Expect ';' after loop condition.");
+
+		exit_jump  = emit_jump(OP_JUMP_IF_FALSE);
+		emit_byte(OP_POP);
+	}
+
+	if (!match(TOKEN_RIGHT_PAREN)) {
+		uint32_t body_jump = emit_jump(OP_JUMP);
+		uint32_t increment_start = current_chunk()->count;
+		expression();
+		emit_byte(OP_POP);
+		// TODO: Don't require parentheses.
+		consume(TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
+		emit_loop(loop_start);
+		loop_start = increment_start;
+		patch_jump(body_jump);
+	}
+
+	statement();
+
+	emit_loop(loop_start);
+
+	if (has_condition) {
+		patch_jump(exit_jump);
+		emit_byte(OP_POP);
+	}
+
+	end_scope();
+}
+
+static void block() {
+	while (!check(TOKEN_RIGHT_BRACE) &&!check(TOKEN_EOF)) {
+		declaration();
+	}
+
+	consume(TOKEN_RIGHT_BRACE, "Expect '}' after block.");
+}
+
+static void and_(bool can_assign) {
+	uint32_t end_jump = emit_jump(OP_JUMP_IF_FALSE);
+
+	emit_byte(OP_POP);
+	parse_precedence(PREC_AND);
+
+	patch_jump(end_jump);
+}
+
+static void or_(bool can_assign) {
+	uint32_t else_jump = emit_jump(OP_JUMP_IF_FALSE);
+	uint32_t end_jump = emit_jump(OP_JUMP);
+
+	patch_jump(else_jump);
+	emit_byte(OP_POP);
+
+	parse_precedence(PREC_OR);
+	patch_jump(end_jump);
+}
+
 static void statement() {
 	if (match(TOKEN_PRINT)) {
 		print_statement();
+	} else if (match(TOKEN_IF)) {
+		// TODO: support if in expression position
+		if_statement();
+	} else if (match(TOKEN_WHILE)) {
+		while_statement();
 	} else if (match(TOKEN_LEFT_BRACE)) {
 		begin_scope();
 		block();
@@ -482,17 +641,17 @@ ParseRule rules[] = {
 	[TOKEN_SLASH]         = {NULL,     binary, PREC_FACTOR},
 	[TOKEN_STAR]          = {NULL,     binary, PREC_FACTOR},
 	[TOKEN_BANG]          = {unary,    NULL,   PREC_NONE},
-	[TOKEN_BANG_EQUAL]    = {NULL,     binary,   PREC_NONE},
+	[TOKEN_BANG_EQUAL]    = {NULL,     binary, PREC_NONE},
 	[TOKEN_EQUAL]         = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_EQUAL_EQUAL]   = {NULL,     binary,   PREC_NONE},
-	[TOKEN_GREATER]       = {NULL,     binary,   PREC_NONE},
-	[TOKEN_GREATER_EQUAL] = {NULL,     binary,   PREC_NONE},
-	[TOKEN_LESS]          = {NULL,     binary,   PREC_NONE},
-	[TOKEN_LESS_EQUAL]    = {NULL,     binary,   PREC_NONE},
+	[TOKEN_EQUAL_EQUAL]   = {NULL,     binary, PREC_NONE},
+	[TOKEN_GREATER]       = {NULL,     binary, PREC_NONE},
+	[TOKEN_GREATER_EQUAL] = {NULL,     binary, PREC_NONE},
+	[TOKEN_LESS]          = {NULL,     binary, PREC_NONE},
+	[TOKEN_LESS_EQUAL]    = {NULL,     binary, PREC_NONE},
 	[TOKEN_IDENTIFIER]    = {variable, NULL,   PREC_NONE},
 	[TOKEN_STRING]        = {string,   NULL,   PREC_NONE},
 	[TOKEN_NUMBER]        = {number,   NULL,   PREC_NONE},
-	[TOKEN_AND]           = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_AND]           = {NULL,     and_,   PREC_NONE},
 	[TOKEN_CLASS]         = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_ELSE]          = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_FALSE]         = {literal,  NULL,   PREC_NONE},
@@ -500,7 +659,7 @@ ParseRule rules[] = {
 	[TOKEN_FUN]           = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_IF]            = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_NIL]           = {literal,  NULL,   PREC_NONE},
-	[TOKEN_OR]            = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_OR]            = {NULL,     or_,   PREC_NONE},
 	[TOKEN_PRINT]         = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_RETURN]        = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_SUPER]         = {NULL,     NULL,   PREC_NONE},

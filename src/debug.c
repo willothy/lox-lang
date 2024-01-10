@@ -41,6 +41,17 @@ static size_t byte_long_instruction(const char* name, Chunk *chunk, int offset) 
 	return offset + 2;
 }
 
+static size_t jump_instruction (const char* name, int sign, Chunk *chunk, int offset) {
+	uint32_t jump = (uint32_t)(chunk->code[offset + 1] << 24);
+	jump |= (uint32_t)(chunk->code[offset + 2] << 16);
+	jump |= (uint32_t)(chunk->code[offset + 3] << 8);
+	jump |= (uint32_t)(chunk->code[offset + 4]);
+
+	printf("%-16s %4d -> %d\n", name, offset, offset + 5 + sign * jump);
+
+	return offset + 5;
+}
+
 void disassemble_chunk(Chunk *chunk, const char *name) {
 	printf("== %s ==\n", name);
 
@@ -94,6 +105,12 @@ size_t disassemble_instruction(Chunk *chunk, size_t offset) {
 		return byte_instruction("OP_SET_LOCAL", chunk, offset);
 	case OP_SET_LOCAL_LONG:
 		return byte_long_instruction("OP_SET_LOCAL_LONG", chunk, offset);
+	case OP_JUMP:
+		return jump_instruction("OP_JUMP", 1, chunk, offset);
+	case OP_JUMP_IF_FALSE:
+		return jump_instruction("OP_JUMP_IF_FALSE", 1, chunk, offset);
+	case OP_LOOP:
+		return jump_instruction("OP_LOOP", -1, chunk, offset);
 	case OP_NIL:
 		return simple_instruction("OP_NIL", offset);
 	case OP_TRUE:
