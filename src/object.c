@@ -108,8 +108,9 @@ void function_print(ObjectFunction *function) {
 	printf("<fn %s>", function->name->chars);
 }
 
-ObjectNative *native_new(NativeFn function) {
+ObjectNative *native_new(NativeFn function, uint8_t arity) {
 	ObjectNative *native = ALLOCATE_OBJ(ObjectNative, OBJ_NATIVE, true);
 	native->function = function;
+	native->arity = arity;
 	return native;
 }

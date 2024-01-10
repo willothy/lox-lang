@@ -53,7 +53,8 @@ static inline bool is_obj_type(Value value, ObjectType type) {
 #define AS_STRING(value) ((ObjectString *)AS_OBJ(value))
 #define AS_CSTRING(value) (((ObjectString *)AS_OBJ(value))->chars)
 #define AS_FUNCTION(value) ((ObjectFunction *)AS_OBJ(value))
-#define AS_NATIVE(value) (((ObjectNative *)AS_OBJ(value))->function)
+#define AS_NATIVE(value) ((ObjectNative *)AS_OBJ(value))
+#define AS_NATIVE_FN(value) (((ObjectNative *)AS_OBJ(value))->function)
 
 ObjectString *copy_string(const char *start, size_t length);
 ObjectString *take_string(char *chars, size_t length);
@@ -74,9 +75,10 @@ typedef Value (*NativeFn)(uint8_t argc, Value *args);
 typedef struct {
   Object obj;
   NativeFn function;
+  uint32_t arity;
 } ObjectNative;
 
-ObjectNative *native_new(NativeFn function);
+ObjectNative *native_new(NativeFn function, uint8_t arity);
 
 void object_print(Value obj);
 

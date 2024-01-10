@@ -23,9 +23,9 @@ static void reset_stack() {
 	vm.frame_count = 0;
 }
 
-static void define_native(const char *name, NativeFn function) {
+static void define_native(const char *name, NativeFn function, uint8_t arity) {
 	vm_push(OBJ_VAL(copy_string(name, strlen(name))));
-	vm_push(OBJ_VAL(native_new(function)));
+	vm_push(OBJ_VAL(native_new(function, arity)));
 	table_set(&vm.globals, AS_STRING(vm.stack[0]), vm.stack[1]);
 	vm_pop();
 	vm_pop();
@@ -42,7 +42,7 @@ char *vm_init() {
 	table_init(&vm.strings);
 	table_init(&vm.globals);
 
-	define_native("clock", clock_native);
+	define_native("clock", clock_native, 0);
 
 	return NULL;
 }
@@ -144,8 +144,13 @@ static bool call_value(Value callee, uint8_t argc) {
 		case OBJ_FUNCTION:
 			return call(AS_FUNCTION(callee), argc);
 		case OBJ_NATIVE: {
-			NativeFn native = AS_NATIVE(callee);
-			Value result = native(argc, vm.stack_top - argc);
+			ObjectNative *native = AS_NATIVE(callee);
+			if (argc != native->arity) {
+				runtime_error("Expected %d arguments but got %d.", native->arity, argc);
+				return false;
+			}
+
+			Value result = native->function(argc, vm.stack_top - argc);
 			vm.stack_top -= argc + 1;
 			vm_push(result);
 			return true;
