@@ -7,6 +7,12 @@
 typedef enum {
   OP_CONSTANT,
   OP_CONSTANT_LONG,
+  OP_DEFINE_GLOBAL,
+  OP_DEFINE_GLOBAL_LONG,
+  OP_GET_GLOBAL,
+  OP_GET_GLOBAL_LONG,
+  OP_SET_GLOBAL,
+  OP_SET_GLOBAL_LONG,
   OP_NIL,
   OP_TRUE,
   OP_FALSE,
@@ -22,6 +28,8 @@ typedef enum {
   // OP_MODULO,
   OP_NEGATE,
   OP_RETURN,
+  OP_PRINT,
+  OP_POP,
 } opcode_t;
 
 typedef size_t linenr_t;
@@ -69,7 +77,7 @@ void chunk_init(chunk_t *chunk);
 void chunk_write(chunk_t *chunk, uint8_t byte, linenr_t line);
 void chunk_free(chunk_t *chunk);
 
-size_t chunk_add_constant(chunk_t *chunk, value_t value);
-void chunk_write_constant(chunk_t *chunk, value_t constant, linenr_t line);
+uint32_t chunk_add_constant(chunk_t *chunk, value_t value);
+uint32_t chunk_write_constant(chunk_t *chunk, value_t constant, linenr_t line);
 
 #endif

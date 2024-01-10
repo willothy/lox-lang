@@ -1,6 +1,7 @@
 #include <stdio.h>
 
 #include "debug.h"
+#include "chunk.h"
 #include "value.h"
 
 static size_t simple_instruction(const char *name, size_t offset) {
@@ -9,7 +10,7 @@ static size_t simple_instruction(const char *name, size_t offset) {
 }
 
 static size_t constant_instruction(const char* name, chunk_t *chunk, int offset) {
-	uint8_t idx = chunk->code[offset  + 1];
+	uint8_t idx = chunk->code[offset + 1];
 	printf("%-16s %4d '", name, idx);
 	value_print(chunk->constants.values[idx]);
 	printf("'\n");
@@ -51,10 +52,26 @@ size_t disassemble_instruction(chunk_t *chunk, size_t offset) {
 	switch (instruction) {
 	case OP_RETURN:
 		return simple_instruction("OP_RETURN", offset);
+	case OP_PRINT:
+		return simple_instruction("OP_PRINT", offset);
+	case OP_POP:
+		return simple_instruction("OP_POP", offset);
 	case OP_CONSTANT:
 		return constant_instruction("OP_CONSTANT", chunk, offset);
 	case OP_CONSTANT_LONG:
 		return constant_long_instruction("OP_CONSTANT_LONG", chunk, offset);
+	case OP_DEFINE_GLOBAL:
+		return constant_instruction("OP_DEFINE_GLOBAL", chunk, offset);
+	case OP_DEFINE_GLOBAL_LONG:
+		return constant_long_instruction("OP_DEFINE_GLOBAL_LONG", chunk, offset);
+	case OP_GET_GLOBAL:
+		return constant_instruction("OP_GET_GLOBAL", chunk, offset);
+	case OP_GET_GLOBAL_LONG:
+		return constant_long_instruction("OP_GET_GLOBAL_LONG", chunk, offset);
+	case OP_SET_GLOBAL:
+		return constant_instruction("OP_SET_GLOBAL", chunk, offset);
+	case OP_SET_GLOBAL_LONG:
+		return constant_long_instruction("OP_SET_GLOBAL_LONG", chunk, offset);
 	case OP_NIL:
 		return simple_instruction("OP_NIL", offset);
 	case OP_TRUE:

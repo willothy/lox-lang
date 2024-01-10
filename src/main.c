@@ -17,6 +17,7 @@ static void repl() {
 		}
 
 		vm_interpret(line);
+		table_print(&vm.globals, "globals");
 	}
 }
 

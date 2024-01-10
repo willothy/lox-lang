@@ -45,7 +45,8 @@ void value_print(value_t value) {
 }
 
 void value_println(value_t value) {
-	printf("%g\n", AS_NUMBER(value));
+	value_print(value);
+	printf("\n");
 }
 
 bool value_equal(value_t a, value_t b) {

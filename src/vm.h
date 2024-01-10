@@ -22,6 +22,9 @@ typedef struct {
   size_t stack_size;
   object_t *objects;
   table_t strings;
+  // TODO: come up with a faster way to look up globals (maybe by index instead
+  // of hash?)
+  table_t globals;
 } VM;
 
 extern VM vm;

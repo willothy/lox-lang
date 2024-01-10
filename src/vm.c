@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "chunk.h"
 #include "common.h"
 #include "debug.h"
 #include "memory.h"
@@ -25,12 +26,14 @@ char *vm_init() {
 	reset_stack();
 	vm.objects = NULL;
 	table_init(&vm.strings);
+	table_init(&vm.globals);
 	return NULL;
 }
 
 void vm_free() {
 	FREE_ARRAY(value_t, vm.stack, vm.stack_size);
 	table_free(&vm.strings);
+	table_free(&vm.globals);
 	free_objects();
 }
 
@@ -92,6 +95,8 @@ static void concatonate() {
 static interpret_result_t run() {
   #define READ_BYTE() (*vm.ip++)
   #define READ_CONSTANT() (vm.chunk->constants.values[READ_BYTE()])
+	#define READ_CONSTANT_LONG()    \
+		(vm.chunk->constants.values[READ_BYTE() | (READ_BYTE() << 8) | (READ_BYTE() << 16)])
 	#define BINARY_OP(value_type, op) \
 		if (!IS_NUMBER(vm_peek(0)) || !IS_NUMBER(vm_peek(1))) { \
 			runtime_error("Operands must be numbers."); \
@@ -115,6 +120,7 @@ static interpret_result_t run() {
 			value_print(*slot);
 			printf(" ]");
 		}
+		printf("\n");
 		disassemble_instruction(vm.chunk, (size_t)(vm.ip - vm.chunk->code));
     #endif
 
@@ -126,11 +132,7 @@ static interpret_result_t run() {
 			break;
 		}
 		case OP_CONSTANT_LONG: {
-			// read 3 bytes to get operand index
-			uint32_t index = READ_BYTE();
-			index |= (uint16_t)READ_BYTE() << 8;
-			index |= (uint16_t)READ_BYTE() << 16;
-			value_t constant = vm.chunk->constants.values[index];
+			value_t constant = READ_CONSTANT_LONG();
 			vm_push(constant);
 			break;
 		}
@@ -204,15 +206,81 @@ static interpret_result_t run() {
 			break;
 		}
 		case OP_RETURN: {
-			printf("return ");
-			value_println(vm_pop());
 			return INTERPRET_OK;
+		}
+		case OP_POP: {
+			vm_pop();
+			break;
+		}
+		case OP_DEFINE_GLOBAL: {
+			object_string_t *name = AS_STRING(READ_CONSTANT());
+			table_set(&vm.globals, name, vm_peek(0));
+			vm_pop();
+			break;
+		}
+		case OP_DEFINE_GLOBAL_LONG: {
+			object_string_t *name = AS_STRING(READ_CONSTANT_LONG());
+			table_set(&vm.globals, name, vm_peek(0));
+			vm_pop();
+			break;
+		}
+		case OP_SET_GLOBAL: {
+			object_string_t *name = AS_STRING(READ_CONSTANT());
+			if (table_set(&vm.globals, name, vm_peek(0))) {
+				table_delete(&vm.globals, name);
+				// TODO: what should I do here?
+				runtime_error("Undefined variable '%.*s'.", name->length, name->chars);
+				return INTERPRET_RUNTIME_ERROR;
+			}
+			break;
+		}
+		case OP_SET_GLOBAL_LONG: {
+			object_string_t *name = AS_STRING(READ_CONSTANT_LONG());
+			if (table_set(&vm.globals, name, vm_peek(0))) {
+				table_delete(&vm.globals, name);
+				// TODO: same as above
+				runtime_error("Undefined variable '%.*s'.", name->length, name->chars);
+				return INTERPRET_RUNTIME_ERROR;
+			}
+			break;
+		}
+		case OP_GET_GLOBAL: {
+			object_string_t *name = AS_STRING(READ_CONSTANT());
+			value_t value;
+			if (!table_get(&vm.globals, name, &value)) {
+				// This is the default behavior. I don't it, so my version of lox will
+				// push nil onto the stack like Lua instead of throwing an error.
+				//
+				// runtime_error("Undefined variable '%.*s'.", name->length, name->chars);
+				// return INTERPRET_RUNTIME_ERROR;
+
+				// Just push nil instead :)
+				value = NIL_VAL;
+			}
+			vm_push(value);
+			break;
+		}
+		// TODO: figure out how to get rid of this duplication
+		case OP_GET_GLOBAL_LONG: {
+			object_string_t *name = AS_STRING(READ_CONSTANT_LONG());
+			value_t value;
+			if (!table_get(&vm.globals, name, &value)) {
+				// Same as above
+				value = NIL_VAL;
+			}
+			vm_push(value);
+			break;
+		}
+		case OP_PRINT: {
+			value_println(vm_pop());
+			break;
 		}
 		}
 	}
 
   #undef READ_BYTE
   #undef READ_CONSTANT
+	#undef READ_CONSTANT_LONG
 	#undef BINARY_OP
 }
 

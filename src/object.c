@@ -52,16 +52,17 @@ object_string_t* copy_string(const char *chars, size_t length) {
 }
 
 object_string_t* ref_string(char *chars, size_t length) {
-	uint32_t hash = hash_string(chars, length);
-	object_string_t *interned = table_find_string(&vm.strings, chars, length, hash);
-	if (interned != NULL) {
-		// If the string is already interned, we should use the interned version
-		// to ensure equality checks work correctly.
-		//
-		// Because the string's memory is not owned by the VM, we do not need to free it.
-		return interned;
-	}
-	return alloc_string(chars, length, hash, false);
+	return copy_string(chars, length); // temporary bc we don't have GC to manage chunks
+	// uint32_t hash = hash_string(chars, length);
+	// object_string_t *interned = table_find_string(&vm.strings, chars, length, hash);
+	// if (interned != NULL) {
+	// 	// If the string is already interned, we should use the interned version
+	// 	// to ensure equality checks work correctly.
+	// 	//
+	// 	// Because the string's memory is not owned by the VM, we do not need to free it.
+	// 	return interned;
+	// }
+	// return alloc_string(chars, length, hash, false);
 }
 
 object_string_t *take_string(char *chars, size_t length) {

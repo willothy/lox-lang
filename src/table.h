@@ -24,4 +24,6 @@ bool table_delete(table_t *table, object_string_t *key);
 object_string_t *table_find_string(table_t *table, const char *chars,
                                    size_t length, uint32_t hash);
 
+void table_print(table_t *table, char *name);
+
 #endif

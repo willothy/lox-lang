@@ -75,13 +75,13 @@ void chunk_free(chunk_t *chunk) {
 	chunk_init(chunk);
 }
 
-size_t chunk_add_constant(chunk_t *chunk, value_t value) {
+uint32_t chunk_add_constant(chunk_t *chunk, value_t value) {
 	value_array_write(&chunk->constants, value);
 	return chunk->constants.count - 1;
 }
 
-void chunk_write_constant(chunk_t *chunk, value_t constant, linenr_t line) {
-	size_t index = chunk_add_constant(chunk, constant);
+uint32_t chunk_write_constant(chunk_t *chunk, value_t constant, linenr_t line) {
+	uint32_t index = chunk_add_constant(chunk, constant);
 
 	if (index > UINT8_MAX) {
 		chunk_write(chunk, OP_CONSTANT_LONG, line);
@@ -93,4 +93,6 @@ void chunk_write_constant(chunk_t *chunk, value_t constant, linenr_t line) {
 		chunk_write(chunk, OP_CONSTANT, line);
 		chunk_write(chunk, (uint8_t)index, line);
 	}
+
+	return index;
 }

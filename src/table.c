@@ -145,3 +145,27 @@ object_string_t* table_find_string(table_t *table, const char *chars, size_t len
 		index = (index + 1) % table->capacity;
 	}
 }
+
+void table_print(table_t *table, char *name) {
+	if (name) {
+		printf("%s: {", name);
+	} else {
+		printf("{");
+	}
+	if (table->count == 0) {
+		printf("}\n");
+		return;
+	} else {
+		printf("\n");
+	}
+	for (size_t i = 0; i < table->capacity; i++) {
+		entry_t *entry = &table->entries[i];
+		if (entry->key != NULL) {
+			printf("  ");
+			object_print(OBJ_VAL(entry->key));
+			printf(": ");
+			value_println(entry->value);
+		}
+	}
+	printf("}\n");
+}
