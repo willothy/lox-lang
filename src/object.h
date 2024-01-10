@@ -72,6 +72,7 @@ void function_print(ObjectFunction *function);
 
 typedef Value (*NativeFn)(uint8_t argc, Value *args);
 
+// TODO: implement a way for native functions to throw errors.
 typedef struct {
   Object obj;
   NativeFn function;
