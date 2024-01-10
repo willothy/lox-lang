@@ -162,6 +162,7 @@ static void patch_jump(uint32_t offset) {
 }
 
 static void emit_return() {
+	emit_byte(OP_NIL);
 	emit_byte(OP_RETURN);
 }
 
@@ -228,7 +229,7 @@ static void parse_precedence(Precedence precedence) {
 	advance();
 	ParseFn prefix_rule = get_rule(parser.previous.type)->prefix;
 	if (prefix_rule == NULL) {
-		error("Expect expression.");
+		error("Expected expression.");
 		return;
 	}
 
@@ -555,11 +556,13 @@ static void return_statement() {
 		error("Cannot return from top-level code.");
 	}
 
-	if (!check(TOKEN_SEMICOLON)) {
+	if (match(TOKEN_SEMICOLON)) {
+		emit_return();
+	} else {
 		expression();
+		consume(TOKEN_SEMICOLON, "Expect ';' after return value.");
+		emit_byte(OP_RETURN);
 	}
-	consume(TOKEN_SEMICOLON, "Expect ';' after return value.");
-	emit_return();
 }
 
 static void and_(bool can_assign) {
@@ -731,29 +734,31 @@ static void call(bool can_assign) {
 }
 
 ParseRule rules[] = {
-	[TOKEN_LEFT_PAREN]    = {grouping, call,   PREC_NONE},
+	[TOKEN_LEFT_PAREN]    = {grouping, call,   PREC_CALL},
 	[TOKEN_RIGHT_PAREN]   = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_LEFT_BRACE]    = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_RIGHT_BRACE]   = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_COMMA]         = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_DOT]           = {NULL,     NULL,   PREC_NONE},
+	// Classes and Instances table-dot
+	// [TOKEN_DOT]           = {NULL,     dot,    PREC_CALL},
 	[TOKEN_MINUS]         = {unary,    binary, PREC_TERM},
 	[TOKEN_PLUS]          = {NULL,     binary, PREC_TERM},
 	[TOKEN_SEMICOLON]     = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_SLASH]         = {NULL,     binary, PREC_FACTOR},
 	[TOKEN_STAR]          = {NULL,     binary, PREC_FACTOR},
 	[TOKEN_BANG]          = {unary,    NULL,   PREC_NONE},
-	[TOKEN_BANG_EQUAL]    = {NULL,     binary, PREC_NONE},
+	[TOKEN_BANG_EQUAL]    = {NULL,     binary, PREC_EQUALITY},
 	[TOKEN_EQUAL]         = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_EQUAL_EQUAL]   = {NULL,     binary, PREC_NONE},
-	[TOKEN_GREATER]       = {NULL,     binary, PREC_NONE},
-	[TOKEN_GREATER_EQUAL] = {NULL,     binary, PREC_NONE},
-	[TOKEN_LESS]          = {NULL,     binary, PREC_NONE},
-	[TOKEN_LESS_EQUAL]    = {NULL,     binary, PREC_NONE},
+	[TOKEN_EQUAL_EQUAL]   = {NULL,     binary, PREC_EQUALITY},
+	[TOKEN_GREATER]       = {NULL,     binary, PREC_COMPARISON},
+	[TOKEN_GREATER_EQUAL] = {NULL,     binary, PREC_COMPARISON},
+	[TOKEN_LESS]          = {NULL,     binary, PREC_COMPARISON},
+	[TOKEN_LESS_EQUAL]    = {NULL,     binary, PREC_COMPARISON},
 	[TOKEN_IDENTIFIER]    = {variable, NULL,   PREC_NONE},
 	[TOKEN_STRING]        = {string,   NULL,   PREC_NONE},
 	[TOKEN_NUMBER]        = {number,   NULL,   PREC_NONE},
-	[TOKEN_AND]           = {NULL,     and_,   PREC_NONE},
+	[TOKEN_AND]           = {NULL,     and_,   PREC_AND},
 	[TOKEN_CLASS]         = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_ELSE]          = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_FALSE]         = {literal,  NULL,   PREC_NONE},
@@ -761,11 +766,15 @@ ParseRule rules[] = {
 	[TOKEN_FUN]           = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_IF]            = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_NIL]           = {literal,  NULL,   PREC_NONE},
-	[TOKEN_OR]            = {NULL,     or_,   PREC_NONE},
+	[TOKEN_OR]            = {NULL,     or_,    PREC_OR},
 	[TOKEN_PRINT]         = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_RETURN]        = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_SUPER]         = {NULL,     NULL,   PREC_NONE},
+	// Superclasses
+	// [TOKEN_SUPER]         = {super_,   NULL,   PREC_NONE},
 	[TOKEN_THIS]          = {NULL,     NULL,   PREC_NONE},
+	// Methods and Initializers
+	// [TOKEN_THIS]          = {this_,    NULL,   PREC_NONE},
 	[TOKEN_TRUE]          = {literal,  NULL,   PREC_NONE},
 	[TOKEN_VAR]           = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_WHILE]         = {NULL,     NULL,   PREC_NONE},
