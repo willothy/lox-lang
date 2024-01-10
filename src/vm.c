@@ -73,11 +73,20 @@ static void runtime_error(const char *format,...) {
 	va_end(args);
 	fputs("\n", stderr);
 
-	CallFrame *frame = &vm.frames[vm.frame_count - 1];
+	// Print the stack trace
+	for (size_t i = 0; i < vm.frame_count; i++) {
+		CallFrame *frame = &vm.frames[i];
+		ObjectFunction *function = frame->function;
+		size_t inst = frame->ip - function->chunk.code - 1;
+		Linenr line = line_info_get(&function->chunk.lines, inst);
+		fprintf(stderr, "[line %zu] in ", line);
+		if (function->name == NULL) {
+			fprintf(stderr, "script\n");
+		} else {
+			fprintf(stderr, "%s()\n", function->name->chars);
+		}
+	}
 
-	size_t inst = frame->ip - frame->function->chunk.code - 1;
-	Linenr line = line_info_get(&frame->function->chunk.lines, inst);
-	fprintf(stderr, "[line %zu] in script\n", line);
 	reset_stack();
 }
 
@@ -93,6 +102,32 @@ static void concatonate() {
 
 	ObjectString *result = take_string(chars, length);
 	vm_push(OBJ_VAL(result));
+}
+
+static bool call(ObjectFunction *function, uint8_t argc) {
+	if (argc != function->arity) {
+		runtime_error("Expected %d arguments but got %d.", function->arity, argc);
+		return false;
+	}
+
+	if (vm.frame_count == FRAMES_MAX) {
+		runtime_error("Stack overflow.");
+		return false;
+	}
+
+	CallFrame *frame = &vm.frames[vm.frame_count++];
+	frame->function = function;
+	frame->ip = function->chunk.code;
+	frame->slots = vm.stack_top - argc - 1; // -1 to account for reserved stack slot 0
+	return true;
+}
+
+static bool call_value(Value callee, uint8_t argc) {
+	if (IS_FUNCTION(callee)) {
+		return call(AS_FUNCTION(callee), argc);
+	}
+	runtime_error("Can only call functions and classes.");
+	return false;
 }
 
 static InterpretResult run() {
@@ -212,8 +247,26 @@ static InterpretResult run() {
 			vm_push(NUMBER_VAL(-AS_NUMBER(vm_pop())));
 			break;
 		}
+		case OP_CALL: {
+			size_t argc = READ_BYTE();
+			if (!call_value(vm_peek(argc), argc)) {
+				return INTERPRET_RUNTIME_ERROR;
+			}
+			frame = &vm.frames[vm.frame_count - 1];
+			break;
+		}
 		case OP_RETURN: {
-			return INTERPRET_OK;
+			Value result = vm_pop();
+			vm.frame_count--;
+			if (vm.frame_count == 0) {
+				vm_pop();
+				return INTERPRET_OK;
+			}
+
+			vm.stack_top = frame->slots;
+			vm_push(result);
+			frame = &vm.frames[vm.frame_count - 1];
+			break;
 		}
 		case OP_POP: {
 			vm_pop();
@@ -338,10 +391,7 @@ InterpretResult vm_interpret(const char *src) {
 	}
 
 	vm_push(OBJ_VAL(function));
-	CallFrame *frame = &vm.frames[vm.frame_count++];
-	frame->function = function;
-	frame->ip = function->chunk.code;
-	frame->slots = vm.stack;
+	call(function, 0);
 
 	return run();
 }

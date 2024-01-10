@@ -52,7 +52,9 @@ typedef enum {
 	FN_TYPE_SCRIPT,
 } FunctionType;
 
-typedef struct {
+typedef struct Compiler {
+	struct Compiler *enclosing;
+
 	ObjectFunction *function;
 	FunctionType type;
 
@@ -168,11 +170,16 @@ static uint32_t emit_constant(Value value) {
 }
 
 static void compiler_init(Compiler *compiler, FunctionType type) {
+	compiler->enclosing = current;
 	compiler->type = type;
 	compiler->local_count = 0;
 	compiler->scope_depth = 0;
 	compiler->function = function_new();
 	current = compiler;
+
+	if (type  != FN_TYPE_SCRIPT) {
+		current->function->name = copy_string((char*)parser.previous.start, parser.previous.length);
+	}
 
 	Local *local = &current->locals[current->local_count++];
 	local->depth = 0;
@@ -189,6 +196,8 @@ static ObjectFunction *end_compilation() {
 		disassemble_chunk(current_chunk(), function->name != NULL ? function->name->chars : "<script>");
 	}
 	#endif
+
+	current = current->enclosing;
 
 	return function;
 }
@@ -207,6 +216,7 @@ static void expression();
 static void binary(bool can_assign);
 static void statement();
 static void declaration();
+static void block();
 static ParseRule *get_rule(TokenType type);
 
 static void number(bool can_assign) {
@@ -332,6 +342,9 @@ static void add_local(Token name) {
 }
 
 static void mark_initialized() {
+	if (current->scope_depth == 0) {
+		return;
+	}
 	current->locals[current->local_count - 1].depth = current->scope_depth;
 }
 
@@ -371,6 +384,25 @@ static void declare_variable() {
 	add_local(*name);
 }
 
+static void begin_scope() {
+	current->scope_depth++;
+}
+
+static void end_scope() {
+	current->scope_depth--;
+
+	// Drop any locals that were declared in the scope that just ended.
+	// TODO: this is O(n) in the number of locals in the scope,
+	// but could be O(1) if I kept track of the number of locals
+	// at the start of the scope and add a SET_TOP or similar instruction.
+	while (current->local_count > 0 &&
+	       current->locals[current->local_count - 1].depth >
+	       current->scope_depth) {
+		emit_byte(OP_POP);
+		current->local_count--;
+	}
+}
+
 static uint32_t parse_variable(const char *message) {
 	consume(TOKEN_IDENTIFIER, message);
 
@@ -393,8 +425,44 @@ static void var_declaration() {
 	define_variable(global);
 }
 
+
+static void function(FunctionType type) {
+	Compiler compiler;
+	compiler_init(&compiler, type);
+	begin_scope();
+
+	// Compile the parameter list.
+	consume(TOKEN_LEFT_PAREN, "Expect '(' after function name.");
+	if (!check(TOKEN_RIGHT_PAREN)) {
+		do {
+			current->function->arity++;
+			if (current->function->arity > UINT8_MAX) {
+				error_at_current("Cannot have more than 255 parameters.");
+			}
+			uint32_t param_constant = parse_variable("Expect parameter name.");
+			define_variable(param_constant);
+		} while(match(TOKEN_COMMA));
+	}
+	consume(TOKEN_RIGHT_PAREN, "Expect ')' after function parameters.");
+
+	consume(TOKEN_LEFT_BRACE, "Expect '{' before function body.");
+	block();
+
+	ObjectFunction *function = end_compilation();
+	emit_bytes(OP_CONSTANT, emit_constant(OBJ_VAL(function)));
+}
+
+static void fun_declaration() {
+	uint32_t global = parse_variable("Expect function name.");
+	mark_initialized();
+	function(FN_TYPE_FUNCTION);
+	define_variable(global);
+}
+
 static void declaration() {
-	if (match(TOKEN_VAR)) {
+	if (match(TOKEN_FUN)) {
+		fun_declaration();
+	} else if (match(TOKEN_VAR)) {
 		var_declaration();
 	} else {
 		statement();
@@ -403,23 +471,12 @@ static void declaration() {
 	if (parser.panic_mode) synchronize();
 }
 
-static void begin_scope() {
-	current->scope_depth++;
-}
-
-static void end_scope() {
-	current->scope_depth--;
-
-	// Drop any locals that were declared in the scope that just ended.
-	// TODO: this is O(n) in the number of locals in the scope,
-	// but could be O(1) if I kept track of the number of locals
-	// at the start of the scope and add a SET_TOP or similar instruction.
-	while (current->local_count > 0 &&
-	       current->locals[current->local_count - 1].depth >
-	       current->scope_depth) {
-		emit_byte(OP_POP);
-		current->local_count--;
+static void block() {
+	while (!check(TOKEN_RIGHT_BRACE) &&!check(TOKEN_EOF)) {
+		declaration();
 	}
+
+	consume(TOKEN_RIGHT_BRACE, "Expect '}' after block.");
 }
 
 static void while_statement() {
@@ -493,12 +550,16 @@ static void for_statement() {
 	end_scope();
 }
 
-static void block() {
-	while (!check(TOKEN_RIGHT_BRACE) &&!check(TOKEN_EOF)) {
-		declaration();
+static void return_statement() {
+	if (current->type == FN_TYPE_SCRIPT) {
+		error("Cannot return from top-level code.");
 	}
 
-	consume(TOKEN_RIGHT_BRACE, "Expect '}' after block.");
+	if (!check(TOKEN_SEMICOLON)) {
+		expression();
+	}
+	consume(TOKEN_SEMICOLON, "Expect ';' after return value.");
+	emit_return();
 }
 
 static void and_(bool can_assign) {
@@ -527,6 +588,10 @@ static void statement() {
 	} else if (match(TOKEN_IF)) {
 		// TODO: support if in expression position
 		if_statement();
+	} else if (match(TOKEN_RETURN)) {
+		return_statement();
+	} else if (match(TOKEN_FOR)) {
+		for_statement();
 	} else if (match(TOKEN_WHILE)) {
 		while_statement();
 	} else if (match(TOKEN_LEFT_BRACE)) {
@@ -645,8 +710,28 @@ static void variable(bool can_assign) {
 	named_variable(parser.previous, can_assign);
 }
 
+static uint8_t argument_list() {
+	uint8_t count = 0;
+	if (!check(TOKEN_RIGHT_PAREN)) {
+		do {
+			expression();
+			if (count == UINT8_MAX) {
+				error("Cannot have more than 255 arguments.");
+			}
+			count++;
+		} while (match(TOKEN_COMMA));
+	}
+	consume(TOKEN_RIGHT_PAREN, "Expect ')' after arguments.");
+	return count;
+}
+
+static void call(bool can_assign) {
+	uint8_t arg_count = argument_list();
+	emit_bytes(OP_CALL, arg_count);
+}
+
 ParseRule rules[] = {
-	[TOKEN_LEFT_PAREN]    = {grouping, NULL,   PREC_NONE},
+	[TOKEN_LEFT_PAREN]    = {grouping, call,   PREC_NONE},
 	[TOKEN_RIGHT_PAREN]   = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_LEFT_BRACE]    = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_RIGHT_BRACE]   = {NULL,     NULL,   PREC_NONE},
