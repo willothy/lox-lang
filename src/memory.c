@@ -25,6 +25,12 @@ static void free_object(Object *obj) {
 		FREE(ObjectString, obj);
 		break;
 	}
+	case OBJ_FUNCTION: {
+		ObjectFunction *fn = (ObjectFunction *)obj;
+		chunk_free(&fn->chunk);
+		FREE(ObjectFunction, obj);
+		break;
+	}
 	}
 }
 

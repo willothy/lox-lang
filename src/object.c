@@ -83,5 +83,24 @@ void object_print(Value val) {
 		// specifier to print only the characters in the string.
 		printf("%.*s", (int)AS_STRING(val)->length, AS_CSTRING(val));
 		break;
+	case OBJ_FUNCTION:
+		function_print(AS_FUNCTION(val));
+		break;
 	}
+}
+
+ObjectFunction *function_new() {
+	ObjectFunction *function = ALLOCATE_OBJ(ObjectFunction, OBJ_FUNCTION, true);
+	function->arity = 0;
+	function->name = NULL;
+	chunk_init(&function->chunk);
+	return function;
+}
+
+void function_print(ObjectFunction *function) {
+	if (function->name == NULL) {
+		printf("<script>");
+		return;
+	}
+	printf("<fn %s>", function->name->chars);
 }

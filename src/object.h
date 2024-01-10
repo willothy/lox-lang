@@ -1,11 +1,14 @@
 #ifndef clox_object_h
 #define clox_object_h
 
+#include "chunk.h"
 #include "common.h"
+#include "memory.h"
 #include "value.h"
 
 typedef enum {
   OBJ_STRING,
+  OBJ_FUNCTION,
 } ObjectType;
 
 struct Object {
@@ -43,13 +46,25 @@ static inline bool is_obj_type(Value value, ObjectType type) {
 }
 
 #define IS_STRING(value) is_obj_type(value, OBJ_STRING)
+#define IS_FUNCTION(value) is_obj_type(value, OBJ_FUNCTION)
 
 #define AS_STRING(value) ((ObjectString *)AS_OBJ(value))
 #define AS_CSTRING(value) (((ObjectString *)AS_OBJ(value))->chars)
+#define AS_FUNCTION(value) ((ObjectFunction *)AS_OBJ(value))
 
 ObjectString *copy_string(const char *start, size_t length);
 ObjectString *take_string(char *chars, size_t length);
 ObjectString *ref_string(char *chars, size_t length);
+
+typedef struct {
+  Object object;
+  Chunk chunk;
+  ObjectString *name;
+  uint8_t arity; // I don't think anyone will use more than 255 args ever.
+} ObjectFunction;
+
+ObjectFunction *function_new();
+void function_print(ObjectFunction *function);
 
 void object_print(Value obj);
 

@@ -47,7 +47,15 @@ typedef struct {
 	uint32_t depth;
 } Local;
 
+typedef enum {
+	FN_TYPE_FUNCTION,
+	FN_TYPE_SCRIPT,
+} FunctionType;
+
 typedef struct {
+	ObjectFunction *function;
+	FunctionType type;
+
 	Local locals[UINT8_COUNT];
 	uint32_t local_count;
 	uint32_t scope_depth;
@@ -55,10 +63,9 @@ typedef struct {
 
 Parser parser;
 Compiler *current = NULL;
-Chunk *compiling_chunk;
 
 static Chunk *current_chunk() {
-	return compiling_chunk;
+	return &current->function->chunk;
 }
 
 static void error_at(Token *token, const char* message) {
@@ -160,20 +167,30 @@ static uint32_t emit_constant(Value value) {
 	return chunk_write_constant(current_chunk(), value, parser.previous.line);
 }
 
-static void compiler_init(Compiler *compiler) {
+static void compiler_init(Compiler *compiler, FunctionType type) {
+	compiler->type = type;
 	compiler->local_count = 0;
 	compiler->scope_depth = 0;
+	compiler->function = function_new();
 	current = compiler;
+
+	Local *local = &current->locals[current->local_count++];
+	local->depth = 0;
+	local->name.start = "";
+	local->name.length = 0;
 }
 
-static void end_compilation() {
+static ObjectFunction *end_compilation() {
 	emit_return();
+	ObjectFunction *function = current->function;
+
 	#ifdef DEBUG_PRINT_CODE
 	if (!parser.had_error) {
-		disassemble_chunk(current_chunk(), "code");
+		disassemble_chunk(current_chunk(), function->name != NULL ? function->name->chars : "<script>");
 	}
 	#endif
-	// compiling_chunk = NULL;
+
+	return function;
 }
 
 static bool check(TokenType type) {
@@ -696,12 +713,11 @@ static void binary(bool can_assign) {
 }
 
 
-bool compile(const char *src, Chunk *chunk) {
+ObjectFunction* compile(const char *src) {
 	scanner_init(src);
 
 	Compiler compiler;
-	compiler_init(&compiler);
-	compiling_chunk = chunk;
+	compiler_init(&compiler, FN_TYPE_SCRIPT);
 
 	parser.had_error = false;
 	parser.panic_mode = false;
@@ -712,7 +728,7 @@ bool compile(const char *src, Chunk *chunk) {
 		declaration();
 	}
 
-	end_compilation();
+	ObjectFunction *function = end_compilation();
 
-	return !parser.had_error;
+	return parser.had_error ? NULL : function;
 }

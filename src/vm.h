@@ -6,7 +6,14 @@
 #include "table.h"
 #include "value.h"
 
-#define STACK_INITIAL 256
+#define FRAMES_MAX 64
+#define STACK_INITIAL (FRAMES_MAX * UINT8_COUNT)
+
+typedef struct {
+  ObjectFunction *function;
+  uint8_t *ip;
+  Value *slots;
+} CallFrame;
 
 typedef enum {
   INTERPRET_OK,
@@ -15,11 +22,16 @@ typedef enum {
 } InterpretResult;
 
 typedef struct {
-  Chunk *chunk;
-  uint8_t *ip;
+  // Call stack
+  CallFrame frames[FRAMES_MAX];
+  size_t frame_count;
+
+  // Stack
   Value *stack_top;
   Value *stack;
   size_t stack_size;
+
+  // Heap / globals
   Object *objects;
   Table strings;
   // TODO: come up with a faster way to look up globals (maybe by index instead
