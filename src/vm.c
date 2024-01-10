@@ -18,6 +18,11 @@ static Value clock_native(uint8_t argc, Value *args) {
 	return NUMBER_VAL((double)clock() / CLOCKS_PER_SEC);
 }
 
+static Value print_native(uint8_t argc, Value *args) {
+	value_println(args[0]);
+	return NIL_VAL;
+}
+
 static void reset_stack() {
 	vm.stack_top = vm.stack;
 	vm.frame_count = 0;
@@ -43,6 +48,7 @@ char *vm_init() {
 	table_init(&vm.globals);
 
 	define_native("clock", clock_native, 0);
+	define_native("print", print_native, 1);
 
 	return NULL;
 }
@@ -390,10 +396,10 @@ static InterpretResult run() {
 			frame->slots[slot] = vm_peek(0);
 			break;
 		}
-		case OP_PRINT: {
-			value_println(vm_pop());
-			break;
-		}
+		// case OP_PRINT: {
+		// 	value_println(vm_pop());
+		// 	break;
+		// }
 		case OP_JUMP: {
 			frame->ip += READ_DWORD();
 			break;

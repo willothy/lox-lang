@@ -283,11 +283,11 @@ static void if_statement() {
 	patch_jump(else_jump);
 }
 
-static void print_statement() {
-	expression();
-	consume(TOKEN_SEMICOLON, "Expect ';' after value.");
-	emit_byte(OP_PRINT);
-}
+// static void print_statement() {
+// 	expression();
+// 	consume(TOKEN_SEMICOLON, "Expect ';' after value.");
+// 	emit_byte(OP_PRINT);
+// }
 
 static void synchronize() {
 	parser.panic_mode = false;
@@ -301,7 +301,7 @@ static void synchronize() {
 		case TOKEN_FOR:
 		case TOKEN_IF:
 		case TOKEN_WHILE:
-		case TOKEN_PRINT:
+		// case TOKEN_PRINT:
 		case TOKEN_RETURN:
 			return;
 		default:
@@ -586,9 +586,10 @@ static void or_(bool can_assign) {
 }
 
 static void statement() {
-	if (match(TOKEN_PRINT)) {
-		print_statement();
-	} else if (match(TOKEN_IF)) {
+	// if (match(TOKEN_PRINT)) {
+	// 	print_statement();
+	// } else
+	if (match(TOKEN_IF)) {
 		// TODO: support if in expression position
 		if_statement();
 	} else if (match(TOKEN_RETURN)) {
@@ -767,7 +768,7 @@ ParseRule rules[] = {
 	[TOKEN_IF]            = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_NIL]           = {literal,  NULL,   PREC_NONE},
 	[TOKEN_OR]            = {NULL,     or_,    PREC_OR},
-	[TOKEN_PRINT]         = {NULL,     NULL,   PREC_NONE},
+	// [TOKEN_PRINT]         = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_RETURN]        = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_SUPER]         = {NULL,     NULL,   PREC_NONE},
 	// Superclasses

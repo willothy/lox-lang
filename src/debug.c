@@ -79,8 +79,8 @@ size_t disassemble_instruction(Chunk *chunk, size_t offset) {
 		return simple_instruction("OP_RETURN", offset);
 	case OP_CALL:
 		return byte_instruction("OP_CALL", chunk, offset);
-	case OP_PRINT:
-		return simple_instruction("OP_PRINT", offset);
+	// case OP_PRINT:
+	// 	return simple_instruction("OP_PRINT", offset);
 	case OP_POP:
 		return simple_instruction("OP_POP", offset);
 	case OP_CONSTANT:
