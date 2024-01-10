@@ -9,8 +9,8 @@
 #define ALLOCATE_OBJ(type, obj_type, owned) \
 	(type *)allocate_object(sizeof(type), obj_type, owned)
 
-static object_t* allocate_object(size_t size, object_type_t type, bool owned) {
-	object_t *obj = (object_t *)reallocate(NULL, 0, size);
+static Object* allocate_object(size_t size, ObjectType type, bool owned) {
+	Object *obj = (Object *)reallocate(NULL, 0, size);
 	obj->type = type;
 	obj->owned = owned;
 	obj->next = vm.objects;
@@ -29,8 +29,8 @@ static uint32_t hash_string(const char *key, size_t length) {
 	return hash;
 }
 
-static object_string_t* alloc_string(char *chars, size_t length, uint32_t hash, bool owned) {
-	object_string_t *str = ALLOCATE_OBJ(object_string_t, OBJ_STRING, owned);
+static ObjectString* alloc_string(char *chars, size_t length, uint32_t hash, bool owned) {
+	ObjectString *str = ALLOCATE_OBJ(ObjectString, OBJ_STRING, owned);
 	str->length = length;
 	str->chars  = chars;
 	str->hash   = hash;
@@ -38,9 +38,9 @@ static object_string_t* alloc_string(char *chars, size_t length, uint32_t hash, 
 	return str;
 }
 
-object_string_t* copy_string(const char *chars, size_t length) {
+ObjectString* copy_string(const char *chars, size_t length) {
 	uint32_t hash = hash_string(chars, length);
-	object_string_t *interned = table_find_string(&vm.strings, chars, length, hash);
+	ObjectString *interned = table_find_string(&vm.strings, chars, length, hash);
 	if (interned != NULL) {
 		return interned;
 	}
@@ -51,10 +51,10 @@ object_string_t* copy_string(const char *chars, size_t length) {
 	return alloc_string(heap_chars, length, hash, true);
 }
 
-object_string_t* ref_string(char *chars, size_t length) {
+ObjectString* ref_string(char *chars, size_t length) {
 	return copy_string(chars, length); // temporary bc we don't have GC to manage chunks
 	// uint32_t hash = hash_string(chars, length);
-	// object_string_t *interned = table_find_string(&vm.strings, chars, length, hash);
+	// ObjectString *interned = table_find_string(&vm.strings, chars, length, hash);
 	// if (interned != NULL) {
 	// 	// If the string is already interned, we should use the interned version
 	// 	// to ensure equality checks work correctly.
@@ -65,9 +65,9 @@ object_string_t* ref_string(char *chars, size_t length) {
 	// return alloc_string(chars, length, hash, false);
 }
 
-object_string_t *take_string(char *chars, size_t length) {
+ObjectString *take_string(char *chars, size_t length) {
 	uint32_t hash = hash_string(chars, length);
-	object_string_t *interned = table_find_string(&vm.strings, chars, length, hash);
+	ObjectString *interned = table_find_string(&vm.strings, chars, length, hash);
 	if (interned != NULL) {
 		FREE_ARRAY(char, chars, length + 1);
 		return interned;
@@ -75,7 +75,7 @@ object_string_t *take_string(char *chars, size_t length) {
 	return alloc_string(chars, length, hash, true);
 }
 
-void object_print(value_t val) {
+void object_print(Value val) {
 	switch(OBJ_TYPE(val)) {
 	case OBJ_STRING:
 		// Lox strings are not null-terminated and can be non-owned references to memory

@@ -9,7 +9,7 @@ static size_t simple_instruction(const char *name, size_t offset) {
 	return offset + 1;
 }
 
-static size_t constant_instruction(const char* name, chunk_t *chunk, int offset) {
+static size_t constant_instruction(const char* name, Chunk *chunk, int offset) {
 	uint8_t idx = chunk->code[offset + 1];
 	printf("%-16s %4d '", name, idx);
 	value_print(chunk->constants.values[idx]);
@@ -17,7 +17,7 @@ static size_t constant_instruction(const char* name, chunk_t *chunk, int offset)
 	return offset + 2;
 }
 
-static size_t constant_long_instruction(const char* name, chunk_t *chunk, int offset) {
+static size_t constant_long_instruction(const char* name, Chunk *chunk, int offset) {
 	uint32_t idx = chunk->code[offset  + 1];
 	idx |= (uint16_t)chunk->code[offset + 2] << 8;
 	idx |= (uint16_t)chunk->code[offset + 3] << 16;
@@ -27,7 +27,7 @@ static size_t constant_long_instruction(const char* name, chunk_t *chunk, int of
 	return offset + 4;
 }
 
-void disassemble_chunk(chunk_t *chunk, const char *name) {
+void disassemble_chunk(Chunk *chunk, const char *name) {
 	printf("== %s ==\n", name);
 
 	for (size_t offset = 0; offset < chunk->count;) {
@@ -35,10 +35,10 @@ void disassemble_chunk(chunk_t *chunk, const char *name) {
 	}
 }
 
-size_t disassemble_instruction(chunk_t *chunk, size_t offset) {
+size_t disassemble_instruction(Chunk *chunk, size_t offset) {
 	printf("%04zu ", offset);
 
-	linenr_t linenr = line_info_get(&chunk->lines, offset);
+	Linenr linenr = line_info_get(&chunk->lines, offset);
 	if (offset > 0 && linenr == line_info_get(&chunk->lines, offset - 1)) {
 		for (int pad=0; pad < linenr % 10; pad++) {
 			printf(" ");

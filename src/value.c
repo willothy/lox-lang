@@ -5,29 +5,29 @@
 #include "object.h"
 #include "value.h"
 
-void value_array_init(value_array_t *array) {
+void value_array_init(ValueArray *array) {
 	array->values = NULL;
 	array->capacity = 0;
 	array->count = 0;
 }
 
-void value_array_write(value_array_t *array, value_t value) {
+void value_array_write(ValueArray *array, Value value) {
 	if (array->capacity < array->count + 1) {
 		size_t old_capacity = array->capacity;
 		array->capacity =  GROW_CAPACITY(old_capacity);
-		array->values = GROW_ARRAY(value_t, array->values, old_capacity, array->capacity);
+		array->values = GROW_ARRAY(Value, array->values, old_capacity, array->capacity);
 	}
 
 	array->values[array->count] = value;
 	array->count++;
 }
 
-void value_array_free(value_array_t *array) {
-	FREE_ARRAY(value_t, array->values, array->capacity);
+void value_array_free(ValueArray *array) {
+	FREE_ARRAY(Value, array->values, array->capacity);
 	value_array_init(array);
 }
 
-void value_print(value_t value) {
+void value_print(Value value) {
 	switch (value.type) {
 	case VAL_NUMBER:
 		printf("%g", AS_NUMBER(value));
@@ -44,12 +44,12 @@ void value_print(value_t value) {
 	}
 }
 
-void value_println(value_t value) {
+void value_println(Value value) {
 	value_print(value);
 	printf("\n");
 }
 
-bool value_equal(value_t a, value_t b) {
+bool value_equal(Value a, Value b) {
 	if (a.type != b.type){
 		return false;
 	}

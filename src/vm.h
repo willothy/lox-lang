@@ -12,19 +12,19 @@ typedef enum {
   INTERPRET_OK,
   INTERPRET_COMPILE_ERROR,
   INTERPRET_RUNTIME_ERROR,
-} interpret_result_t;
+} InterpretResult;
 
 typedef struct {
-  chunk_t *chunk;
+  Chunk *chunk;
   uint8_t *ip;
-  value_t *stack_top;
-  value_t *stack;
+  Value *stack_top;
+  Value *stack;
   size_t stack_size;
-  object_t *objects;
-  table_t strings;
+  Object *objects;
+  Table strings;
   // TODO: come up with a faster way to look up globals (maybe by index instead
   // of hash?)
-  table_t globals;
+  Table globals;
 } VM;
 
 extern VM vm;
@@ -32,10 +32,10 @@ extern VM vm;
 char *vm_init();
 void vm_free();
 
-void vm_push(value_t value);
-value_t vm_pop();
-value_t vm_peek(size_t distance);
+void vm_push(Value value);
+Value vm_pop();
+Value vm_peek(size_t distance);
 
-interpret_result_t vm_interpret(const char *source);
+InterpretResult vm_interpret(const char *source);
 
 #endif

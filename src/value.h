@@ -3,29 +3,29 @@
 
 #include "common.h"
 
-typedef enum value_type_t {
+typedef enum ValueType {
   VAL_BOOL,
   VAL_NIL,
   VAL_NUMBER,
   VAL_OBJ
-} value_type_t;
+} ValueType;
 
-typedef struct object_t object_t;
-typedef struct object_string_t object_string_t;
+typedef struct Object Object;
+typedef struct ObjectString ObjectString;
 
 typedef struct {
-  value_type_t type;
+  ValueType type;
   union {
     bool boolean;
     double number;
-    object_t *object;
+    Object *object;
   } as;
-} value_t;
+} Value;
 
-#define BOOL_VAL(value) ((value_t){VAL_BOOL, {.boolean = value}})
-#define NIL_VAL ((value_t){VAL_NIL, {.number = 0}})
-#define NUMBER_VAL(value) ((value_t){VAL_NUMBER, {.number = value}})
-#define OBJ_VAL(obj) ((value_t){VAL_OBJ, {.object = (object_t *)obj}})
+#define BOOL_VAL(value) ((Value){VAL_BOOL, {.boolean = value}})
+#define NIL_VAL ((Value){VAL_NIL, {.number = 0}})
+#define NUMBER_VAL(value) ((Value){VAL_NUMBER, {.number = value}})
+#define OBJ_VAL(obj) ((Value){VAL_OBJ, {.object = (Object *)obj}})
 
 #define AS_BOOL(value) ((value).as.boolean)
 #define AS_NUMBER(value) ((value).as.number)
@@ -43,16 +43,16 @@ typedef struct {
 typedef struct {
   size_t count;
   size_t capacity;
-  value_t *values;
-} value_array_t;
+  Value *values;
+} ValueArray;
 
-void value_array_init(value_array_t *array);
-void value_array_write(value_array_t *array, value_t value);
-void value_array_free(value_array_t *array);
+void value_array_init(ValueArray *array);
+void value_array_write(ValueArray *array, Value value);
+void value_array_free(ValueArray *array);
 
-void value_print(value_t value);
-void value_println(value_t value);
+void value_print(Value value);
+void value_println(Value value);
 
-bool value_equal(value_t a, value_t b);
+bool value_equal(Value a, Value b);
 
 #endif

@@ -11,12 +11,12 @@
 #include "debug.h"
 #endif
 
-typedef struct parser_t {
-	token_t current;
-	token_t previous;
+typedef struct Parser {
+	Token current;
+	Token previous;
 	bool had_error;
 	bool panic_mode;
-} parser_t;
+} Parser;
 
 typedef enum {
 	PREC_NONE,
@@ -30,24 +30,24 @@ typedef enum {
 	PREC_UNARY, // ! -
 	PREC_CALL,  // . ()
 	PREC_PRIMARY
-} precedence_t;
+} Precedence;
 
-typedef void (*parse_fn_t)(bool can_assign);
+typedef void (*ParseFn)(bool can_assign);
 
 typedef struct  {
-	parse_fn_t prefix;
-	parse_fn_t infix;
-	precedence_t precedence;
-} parse_rule_t;
+	ParseFn prefix;
+	ParseFn infix;
+	Precedence precedence;
+} ParseRule;
 
-parser_t parser;
-chunk_t *compiling_chunk;
+Parser parser;
+Chunk *compiling_chunk;
 
-static chunk_t *current_chunk() {
+static Chunk *current_chunk() {
 	return compiling_chunk;
 }
 
-static void error_at(token_t *token, const char* message) {
+static void error_at(Token *token, const char* message) {
 	if (parser.panic_mode) return;
 	parser.panic_mode = true;
 	fprintf(stderr, "[line %zu] Error", token->line);
@@ -84,7 +84,7 @@ static void advance() {
 	}
 }
 
-static void consume(token_type_t type, const char* message) {
+static void consume(TokenType type, const char* message) {
 	if (parser.current.type == type) {
 		advance();
 		return;
@@ -106,7 +106,7 @@ static void emit_return() {
 	emit_byte(OP_RETURN);
 }
 
-static uint32_t emit_constant(value_t value) {
+static uint32_t emit_constant(Value value) {
 	return chunk_write_constant(current_chunk(), value, parser.previous.line);
 }
 
@@ -120,11 +120,11 @@ static void end_compilation() {
 	// compiling_chunk = NULL;
 }
 
-static bool check(token_type_t type) {
+static bool check(TokenType type) {
 	return parser.current.type == type;
 }
 
-static bool match(token_type_t type) {
+static bool match(TokenType type) {
 	if (!check(type)) return false;
 	advance();
 	return true;
@@ -134,16 +134,16 @@ static void expression();
 static void binary(bool can_assign);
 static void statement();
 static void declaration();
-static parse_rule_t *get_rule(token_type_t type);
+static ParseRule *get_rule(TokenType type);
 
 static void number(bool can_assign) {
 	double value = strtod(parser.previous.start, NULL);
 	emit_constant(NUMBER_VAL(value));
 }
 
-static void parse_precedence(precedence_t precedence) {
+static void parse_precedence(Precedence precedence) {
 	advance();
-	parse_fn_t prefix_rule = get_rule(parser.previous.type)->prefix;
+	ParseFn prefix_rule = get_rule(parser.previous.type)->prefix;
 	if (prefix_rule == NULL) {
 		error("Expect expression.");
 		return;
@@ -154,7 +154,7 @@ static void parse_precedence(precedence_t precedence) {
 
 	while (precedence <= get_rule(parser.current.type)->precedence) {
 		advance();
-		parse_fn_t infix_rule = get_rule(parser.previous.type)->infix;
+		ParseFn infix_rule = get_rule(parser.previous.type)->infix;
 		infix_rule(can_assign);
 	}
 
@@ -212,13 +212,13 @@ static void define_global(uint32_t global) {
 	}
 }
 
-static uint32_t identifier_constant(token_t *name) {
-	chunk_t *chunk = current_chunk();
-	object_string_t *ident = ref_string((char*)name->start, name->length);
+static uint32_t identifier_constant(Token *name) {
+	Chunk *chunk = current_chunk();
+	ObjectString *ident = ref_string((char*)name->start, name->length);
 
 	// slower at compile time, but saves memory by deduplicating constant idents
 	for (uint32_t i = 0; i < chunk->constants.count; i++) {
-		value_t value = chunk->constants.values[i];
+		Value value = chunk->constants.values[i];
 		if (IS_STRING(value) && AS_STRING(value)->hash == ident->hash) {
 			// There is a string with the same hash, so we can
 			// just return its index.
@@ -271,7 +271,7 @@ static void grouping(bool can_assign) {
 }
 
 static void unary(bool can_assign) {
-	token_type_t operator_type = parser.previous.type;
+	TokenType operator_type = parser.previous.type;
 
 	parse_precedence(PREC_UNARY); // operand
 
@@ -307,11 +307,11 @@ static void literal(bool can_assign) {
 }
 
 static void string(bool can_assign) {
-	object_string_t *str = ref_string((char*)parser.previous.start + 1, parser.previous.length-2);
+	ObjectString *str = ref_string((char*)parser.previous.start + 1, parser.previous.length-2);
 	emit_constant(OBJ_VAL(str));
 }
 
-static void named_variable(token_t name, bool can_assign) {
+static void named_variable(Token name, bool can_assign) {
 	uint32_t arg = identifier_constant(&name);
 	bool set = false;
 	if (can_assign && match(TOKEN_EQUAL)) {
@@ -330,7 +330,7 @@ static void variable(bool can_assign) {
 	named_variable(parser.previous, can_assign);
 }
 
-parse_rule_t rules[] = {
+ParseRule rules[] = {
 	[TOKEN_LEFT_PAREN]    = {grouping, NULL,   PREC_NONE},
 	[TOKEN_RIGHT_PAREN]   = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_LEFT_BRACE]    = {NULL,     NULL,   PREC_NONE},
@@ -373,14 +373,14 @@ parse_rule_t rules[] = {
 	[TOKEN_EOF]           = {NULL,     NULL,   PREC_NONE},
 };
 
-static parse_rule_t *get_rule(token_type_t type) {
+static ParseRule *get_rule(TokenType type) {
 	return &rules[type];
 }
 
 static void binary(bool can_assign) {
-	token_type_t operator_type = parser.previous.type;
-	parse_rule_t *rule = get_rule(operator_type);
-	parse_precedence((precedence_t)(rule->precedence + 1)); // right operand
+	TokenType operator_type = parser.previous.type;
+	ParseRule *rule = get_rule(operator_type);
+	parse_precedence((Precedence)(rule->precedence + 1)); // right operand
 
 	switch (operator_type) {
 	case TOKEN_BANG_EQUAL: emit_bytes(OP_EQUAL, OP_NOT); break;
@@ -398,7 +398,7 @@ static void binary(bool can_assign) {
 }
 
 
-bool compile(const char *src, chunk_t *chunk) {
+bool compile(const char *src, Chunk *chunk) {
 	scanner_init(src);
 
 	parser.had_error = false;

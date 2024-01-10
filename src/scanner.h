@@ -52,16 +52,16 @@ typedef enum {
 
   TOKEN_ERROR,
   TOKEN_EOF
-} token_type_t;
+} TokenType;
 
 typedef struct {
-  token_type_t type;
+  TokenType type;
   const char *start;
   size_t length;
-  linenr_t line;
-} token_t;
+  Linenr line;
+} Token;
 
 void scanner_init(const char *source);
-token_t scanner_next_token();
+Token scanner_next_token();
 
 #endif

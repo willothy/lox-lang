@@ -18,7 +18,7 @@ static void reset_stack() {
 }
 
 char *vm_init() {
-	vm.stack = GROW_ARRAY(value_t, vm.stack, 0, STACK_INITIAL);
+	vm.stack = GROW_ARRAY(Value, vm.stack, 0, STACK_INITIAL);
 	if (!vm.stack) {
 		return "Could not allocate memory for stack";
 	}
@@ -31,13 +31,13 @@ char *vm_init() {
 }
 
 void vm_free() {
-	FREE_ARRAY(value_t, vm.stack, vm.stack_size);
+	FREE_ARRAY(Value, vm.stack, vm.stack_size);
 	table_free(&vm.strings);
 	table_free(&vm.globals);
 	free_objects();
 }
 
-void vm_push(value_t value) {
+void vm_push(Value value) {
 	if (vm.stack_top - vm.stack == vm.stack_size) {
 		size_t top = (size_t)vm.stack_top - (size_t)vm.stack;
 		size_t old_size = vm.stack_size;
@@ -47,21 +47,21 @@ void vm_push(value_t value) {
 		printf("stack overflow at %zu, growing to %zu\n", old_size, new_size);
 		#endif
 
-		vm.stack = GROW_ARRAY(value_t, vm.stack, old_size, new_size);
+		vm.stack = GROW_ARRAY(Value, vm.stack, old_size, new_size);
 		vm.stack_size = new_size;
 		// Update stack_top in case the location of the stack array changed due to realloc
-		vm.stack_top = (value_t*)((size_t)vm.stack + ((size_t)top) * sizeof(value_t));
+		vm.stack_top = (Value*)((size_t)vm.stack + ((size_t)top) * sizeof(Value));
 	}
 	*vm.stack_top = value;
 	vm.stack_top++;
 }
 
-value_t vm_pop() {
+Value vm_pop() {
 	vm.stack_top--;
 	return *vm.stack_top;
 }
 
-value_t vm_peek(size_t distance) {
+Value vm_peek(size_t distance) {
 	return vm.stack_top[-1 - distance];
 }
 
@@ -73,14 +73,14 @@ static void runtime_error(const char *format,...) {
 	fputs("\n", stderr);
 
 	size_t inst = vm.ip - vm.chunk->code - 1;
-	linenr_t line = line_info_get(&vm.chunk->lines, inst);
+	Linenr line = line_info_get(&vm.chunk->lines, inst);
 	fprintf(stderr, "[line %zu] in script\n", line);
 	reset_stack();
 }
 
 static void concatonate() {
-	object_string_t *a = AS_STRING(vm_pop());
-	object_string_t *b = AS_STRING(vm_pop());
+	ObjectString *a = AS_STRING(vm_pop());
+	ObjectString *b = AS_STRING(vm_pop());
 
 	size_t length = a->length + b->length;
 	char *chars = ALLOCATE(char, length + 1);
@@ -88,11 +88,11 @@ static void concatonate() {
 	memcpy(chars + a->length, b->chars, b->length);
 	chars[length] = '\0';
 
-	object_string_t *result = take_string(chars, length);
+	ObjectString *result = take_string(chars, length);
 	vm_push(OBJ_VAL(result));
 }
 
-static interpret_result_t run() {
+static InterpretResult run() {
   #define READ_BYTE() (*vm.ip++)
   #define READ_CONSTANT() (vm.chunk->constants.values[READ_BYTE()])
 	#define READ_CONSTANT_LONG()    \
@@ -115,7 +115,7 @@ static interpret_result_t run() {
 	for (;;) {
     #ifdef DEBUG_TRACE_EXECUTION
 		printf("stack:  ");
-		for (value_t* slot = vm.stack; slot < vm.stack_top; slot++) {
+		for (Value* slot = vm.stack; slot < vm.stack_top; slot++) {
 			printf("[ ");
 			value_print(*slot);
 			printf(" ]");
@@ -127,12 +127,12 @@ static interpret_result_t run() {
 		uint8_t instruction;
 		switch (instruction = READ_BYTE()) {
 		case OP_CONSTANT: {
-			value_t constant = READ_CONSTANT();
+			Value constant = READ_CONSTANT();
 			vm_push(constant);
 			break;
 		}
 		case OP_CONSTANT_LONG: {
-			value_t constant = READ_CONSTANT_LONG();
+			Value constant = READ_CONSTANT_LONG();
 			vm_push(constant);
 			break;
 		}
@@ -153,8 +153,8 @@ static interpret_result_t run() {
 			break;
 		}
 		case OP_EQUAL: {
-			value_t a = vm_pop();
-			value_t b = vm_pop();
+			Value a = vm_pop();
+			Value b = vm_pop();
 			vm_push(BOOL_VAL(value_equal(a, b)));
 			break;
 		}
@@ -213,19 +213,19 @@ static interpret_result_t run() {
 			break;
 		}
 		case OP_DEFINE_GLOBAL: {
-			object_string_t *name = AS_STRING(READ_CONSTANT());
+			ObjectString *name = AS_STRING(READ_CONSTANT());
 			table_set(&vm.globals, name, vm_peek(0));
 			vm_pop();
 			break;
 		}
 		case OP_DEFINE_GLOBAL_LONG: {
-			object_string_t *name = AS_STRING(READ_CONSTANT_LONG());
+			ObjectString *name = AS_STRING(READ_CONSTANT_LONG());
 			table_set(&vm.globals, name, vm_peek(0));
 			vm_pop();
 			break;
 		}
 		case OP_SET_GLOBAL: {
-			object_string_t *name = AS_STRING(READ_CONSTANT());
+			ObjectString *name = AS_STRING(READ_CONSTANT());
 			if (table_set(&vm.globals, name, vm_peek(0))) {
 				table_delete(&vm.globals, name);
 				// TODO: what should I do here?
@@ -235,7 +235,7 @@ static interpret_result_t run() {
 			break;
 		}
 		case OP_SET_GLOBAL_LONG: {
-			object_string_t *name = AS_STRING(READ_CONSTANT_LONG());
+			ObjectString *name = AS_STRING(READ_CONSTANT_LONG());
 			if (table_set(&vm.globals, name, vm_peek(0))) {
 				table_delete(&vm.globals, name);
 				// TODO: same as above
@@ -245,8 +245,8 @@ static interpret_result_t run() {
 			break;
 		}
 		case OP_GET_GLOBAL: {
-			object_string_t *name = AS_STRING(READ_CONSTANT());
-			value_t value;
+			ObjectString *name = AS_STRING(READ_CONSTANT());
+			Value value;
 			if (!table_get(&vm.globals, name, &value)) {
 				// This is the default behavior. I don't it, so my version of lox will
 				// push nil onto the stack like Lua instead of throwing an error.
@@ -262,8 +262,8 @@ static interpret_result_t run() {
 		}
 		// TODO: figure out how to get rid of this duplication
 		case OP_GET_GLOBAL_LONG: {
-			object_string_t *name = AS_STRING(READ_CONSTANT_LONG());
-			value_t value;
+			ObjectString *name = AS_STRING(READ_CONSTANT_LONG());
+			Value value;
 			if (!table_get(&vm.globals, name, &value)) {
 				// Same as above
 				value = NIL_VAL;
@@ -284,8 +284,8 @@ static interpret_result_t run() {
 	#undef BINARY_OP
 }
 
-interpret_result_t vm_interpret(const char *src) {
-	chunk_t chunk;
+InterpretResult vm_interpret(const char *src) {
+	Chunk chunk;
 	chunk_init(&chunk);
 
 	if (!compile(src, &chunk)) {
@@ -296,7 +296,7 @@ interpret_result_t vm_interpret(const char *src) {
 	vm.chunk = &chunk;
 	vm.ip = vm.chunk->code;
 
-	interpret_result_t res = run();
+	InterpretResult res = run();
 
 	vm.chunk = NULL;
 	vm.ip = NULL;

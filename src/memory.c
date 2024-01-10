@@ -15,23 +15,23 @@ void *reallocate(void *ptr, size_t old_size, size_t new_size) {
 	return rv;
 }
 
-static void free_object(object_t *obj) {
+static void free_object(Object *obj) {
 	switch (obj->type) {
 	case OBJ_STRING: {
-		object_string_t *str = (object_string_t *)obj;
+		ObjectString *str = (ObjectString *)obj;
 		if (obj->owned) {
 			FREE_ARRAY(char, str->chars, str->length + 1);
 		}
-		FREE(object_string_t, obj);
+		FREE(ObjectString, obj);
 		break;
 	}
 	}
 }
 
 void free_objects() {
-	object_t *obj = vm.objects;
+	Object *obj = vm.objects;
 	while (obj) {
-		object_t *next = obj->next;
+		Object *next = obj->next;
 		free_object(obj);
 		obj = next;
 	}

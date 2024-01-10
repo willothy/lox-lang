@@ -8,14 +8,14 @@
 typedef struct {
 	const char* start;
 	const char* current;
-	linenr_t line;
-} scanner_t;
+	Linenr line;
+} Scanner;
 
-scanner_t scanner;
+Scanner scanner;
 
 
-static token_t token(token_type_t type) {
-	token_t token;
+static Token token(TokenType type) {
+	Token token;
 	token.type = type;
 	token.start = scanner.start;
 	token.length = (size_t)(scanner.current - scanner.start);
@@ -85,8 +85,8 @@ static void skip_whitespace() {
 }
 
 
-static token_t error_token(const char* message) {
-	token_t token;
+static Token error_token(const char* message) {
+	Token token;
 	token.type = TOKEN_ERROR;
 	token.start = message;
 	token.length = (size_t)strlen(message);
@@ -94,7 +94,7 @@ static token_t error_token(const char* message) {
 	return token;
 }
 
-static token_t string() {
+static Token string() {
 	while (peek() != '"' && !is_at_end()) {
 		if (peek() == '\n') scanner.line++;
 		advance();
@@ -108,7 +108,7 @@ static token_t string() {
 	return token(TOKEN_STRING);
 }
 
-static token_t number() {
+static Token number() {
 	while (is_digit(peek())) advance();
 
 	if (peek() == '.' && is_digit(peek_next())) {
@@ -118,7 +118,7 @@ static token_t number() {
 	return token(TOKEN_NUMBER);
 }
 
-static token_type_t check_keyword(size_t start, size_t length, const char* rest, token_type_t type) {
+static TokenType check_keyword(size_t start, size_t length, const char* rest, TokenType type) {
 	if (scanner.current - scanner.start == start + length &&
 	    memcmp(scanner.start + start, rest, length) == 0) {
 		return type;
@@ -126,7 +126,7 @@ static token_type_t check_keyword(size_t start, size_t length, const char* rest,
 	return TOKEN_IDENTIFIER;
 }
 
-static token_type_t ident_type() {
+static TokenType ident_type() {
 	switch (*scanner.start) {
 	// TODO: use tries
 	case 'a': return check_keyword(1, 2, "nd", TOKEN_AND);
@@ -164,7 +164,7 @@ static token_type_t ident_type() {
 	return TOKEN_IDENTIFIER;
 }
 
-static token_t ident() {
+static Token ident() {
 	while (is_alpha(peek()) || is_digit(peek())) advance();
 	return token(ident_type());
 }
@@ -175,7 +175,7 @@ void scanner_init(const char* source) {
 	scanner.line = 1;
 }
 
-token_t scanner_next_token() {
+Token scanner_next_token() {
 	skip_whitespace();
 	scanner.start = scanner.current;
 
