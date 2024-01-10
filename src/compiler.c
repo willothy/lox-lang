@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "common.h"
 #include "compiler.h"
@@ -40,7 +41,19 @@ typedef struct  {
 	Precedence precedence;
 } ParseRule;
 
+typedef struct {
+	Token name;
+	uint32_t depth;
+} Local;
+
+typedef struct {
+	Local locals[UINT8_COUNT];
+	uint32_t local_count;
+	uint32_t scope_depth;
+} Compiler;
+
 Parser parser;
+Compiler *current = NULL;
 Chunk *compiling_chunk;
 
 static Chunk *current_chunk() {
@@ -108,6 +121,12 @@ static void emit_return() {
 
 static uint32_t emit_constant(Value value) {
 	return chunk_write_constant(current_chunk(), value, parser.previous.line);
+}
+
+static void compiler_init(Compiler *compiler) {
+	compiler->local_count = 0;
+	compiler->scope_depth = 0;
+	current = compiler;
 }
 
 static void end_compilation() {
@@ -202,15 +221,6 @@ static void synchronize() {
 	}
 }
 
-static void define_global(uint32_t global) {
-	if (global > UINT8_MAX) {
-		// TODO: is this the correct order?
-		emit_bytes(OP_DEFINE_GLOBAL_LONG, global & 0xff);
-		emit_bytes( (global >> 8) & 0xff, (global >> 16) & 0xff);
-	} else {
-		emit_bytes(OP_DEFINE_GLOBAL, global & 0xff);
-	}
-}
 
 static uint32_t identifier_constant(Token *name) {
 	Chunk *chunk = current_chunk();
@@ -229,8 +239,64 @@ static uint32_t identifier_constant(Token *name) {
 	// return chunk_add_constant(current_chunk(), OBJ_VAL(ref_string((char*)name->start, name->length)));
 }
 
+static void add_local(Token name) {
+	// TODO: support more than 256 locals
+	if (current->local_count == UINT8_COUNT) {
+		error("Too many local variables in function.");
+		return;
+	}
+	Local *local = &current->locals[current->local_count++];
+	local->name = name;
+	local->depth = -1;
+	// local->depth = current->scope_depth;
+}
+
+static void mark_initialized() {
+	current->locals[current->local_count - 1].depth = current->scope_depth;
+}
+
+static void define_variable(uint32_t global) {
+	if (current->scope_depth > 0) {
+		mark_initialized();
+		return;
+	};
+
+	if (global > UINT8_MAX) {
+		// TODO: is this the correct order?
+		emit_bytes(OP_DEFINE_GLOBAL_LONG, global & 0xff);
+		emit_bytes( (global >> 8) & 0xff, (global >> 16) & 0xff);
+	} else {
+		emit_bytes(OP_DEFINE_GLOBAL, global & 0xff);
+	}
+}
+
+static void declare_variable() {
+	if (current->scope_depth == 0) return;
+
+	Token *name = &parser.previous;
+
+#ifndef ALLOW_SHADOWING
+	for (int i = current->local_count - 1; i >= 0; i--) {
+		Local* local = &current->locals[i];
+		if (local->depth != -1 && local->depth < current->scope_depth) {
+			break;
+		}
+
+		if (identifiers_equal(name, &local->name)) {
+			error("Already a variable with this name in this scope.");
+		}
+	}
+#endif
+
+	add_local(*name);
+}
+
 static uint32_t parse_variable(const char *message) {
 	consume(TOKEN_IDENTIFIER, message);
+
+	declare_variable();
+	if (current->scope_depth > 0) return 0;
+
 	return identifier_constant(&parser.previous);
 }
 
@@ -244,7 +310,7 @@ static void var_declaration() {
 	}
 	consume(TOKEN_SEMICOLON, "Expect ';' after variable declaration.");
 
-	define_global(global);
+	define_variable(global);
 }
 
 static void declaration() {
@@ -257,9 +323,40 @@ static void declaration() {
 	if (parser.panic_mode) synchronize();
 }
 
+static void block() {
+	while (!check(TOKEN_RIGHT_BRACE) &&!check(TOKEN_EOF)) {
+		declaration();
+	}
+
+	consume(TOKEN_RIGHT_BRACE, "Expect '}' after block.");
+}
+
+static void begin_scope() {
+	current->scope_depth++;
+}
+
+static void end_scope() {
+	current->scope_depth--;
+
+	// Drop any locals that were declared in the scope that just ended.
+	// TODO: this is O(n) in the number of locals in the scope,
+	// but could be O(1) if I kept track of the number of locals
+	// at the start of the scope and add a SET_TOP or similar instruction.
+	while (current->local_count > 0 &&
+	       current->locals[current->local_count - 1].depth >
+	       current->scope_depth) {
+		emit_byte(OP_POP);
+		current->local_count--;
+	}
+}
+
 static void statement() {
 	if (match(TOKEN_PRINT)) {
 		print_statement();
+	} else if (match(TOKEN_LEFT_BRACE)) {
+		begin_scope();
+		block();
+		end_scope();
 	} else {
 		expression_statement();
 	}
@@ -311,18 +408,60 @@ static void string(bool can_assign) {
 	emit_constant(OBJ_VAL(str));
 }
 
+static bool identifiers_equal(Token *a, Token *b) {
+	if (a->length != b->length) return false;
+	return memcmp(a->start, b->start, a->length) == 0;
+}
+
+static int32_t resolve_local(Compiler *compiler, Token *name) {
+	for (int i = compiler->local_count - 1; i >= 0; i--) {
+		Local *local = &compiler->locals[i];
+		if (identifiers_equal(name, &local->name)) {
+			if (local->depth == -1) {
+				// Erroring is the default behavior. Instead, my version of Lox will
+				// continue searching for similarly named variables in outer scopes.
+				// error("Cannot read local variable in its own initializer.");
+
+				continue;
+			}
+			return i;
+		}
+	}
+	return -1;
+}
+
 static void named_variable(Token name, bool can_assign) {
-	uint32_t arg = identifier_constant(&name);
+	uint8_t get_op, set_op;
+
+	uint32_t arg = resolve_local(current, &name);
+
+	if (arg != -1) {
+		if (arg > UINT8_MAX) {
+			get_op = OP_GET_LOCAL_LONG;
+			set_op = OP_SET_LOCAL_LONG;
+		} else {
+			get_op = OP_GET_LOCAL;
+			set_op = OP_SET_LOCAL;
+		}
+	} else {
+		arg = identifier_constant(&name);
+		if (arg > UINT8_MAX) {
+			get_op = OP_GET_GLOBAL_LONG;
+			set_op = OP_SET_GLOBAL_LONG;
+		} else {
+			get_op = OP_GET_GLOBAL;
+			set_op = OP_SET_GLOBAL;
+		}
+	}
+
 	bool set = false;
 	if (can_assign && match(TOKEN_EQUAL)) {
 		expression();
 		set = true;
 	}
+	emit_bytes(set ? set_op : get_op, arg & 0xff);
 	if (arg > UINT8_MAX) {
-		emit_bytes(set ? OP_SET_GLOBAL_LONG : OP_GET_GLOBAL_LONG, arg & 0xff);
 		emit_bytes( (arg >> 8) & 0xff, (arg >> 16) & 0xff);
-	} else {
-		emit_bytes(set ? OP_SET_GLOBAL : OP_GET_GLOBAL, (uint8_t)arg);
 	}
 }
 
@@ -401,10 +540,12 @@ static void binary(bool can_assign) {
 bool compile(const char *src, Chunk *chunk) {
 	scanner_init(src);
 
+	Compiler compiler;
+	compiler_init(&compiler);
+	compiling_chunk = chunk;
+
 	parser.had_error = false;
 	parser.panic_mode = false;
-
-	compiling_chunk = chunk;
 
 	advance();
 

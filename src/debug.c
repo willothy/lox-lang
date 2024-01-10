@@ -27,6 +27,20 @@ static size_t constant_long_instruction(const char* name, Chunk *chunk, int offs
 	return offset + 4;
 }
 
+static size_t byte_instruction(const char* name, Chunk *chunk, int offset) {
+	uint8_t idx = chunk->code[offset + 1];
+	printf("%-16s %4d\n", name, idx);
+	return offset + 2;
+}
+
+static size_t byte_long_instruction(const char* name, Chunk *chunk, int offset) {
+	uint32_t idx = chunk->code[offset  + 1];
+	idx |= (uint16_t)chunk->code[offset + 2] << 8;
+	idx |= (uint16_t)chunk->code[offset + 3] << 16;
+	printf("%-16s %4d\n", name, idx);
+	return offset + 2;
+}
+
 void disassemble_chunk(Chunk *chunk, const char *name) {
 	printf("== %s ==\n", name);
 
@@ -72,6 +86,14 @@ size_t disassemble_instruction(Chunk *chunk, size_t offset) {
 		return constant_instruction("OP_SET_GLOBAL", chunk, offset);
 	case OP_SET_GLOBAL_LONG:
 		return constant_long_instruction("OP_SET_GLOBAL_LONG", chunk, offset);
+	case OP_GET_LOCAL:
+		return byte_instruction("OP_GET_LOCAL", chunk, offset);
+	case OP_GET_LOCAL_LONG:
+		return byte_long_instruction("OP_GET_LOCAL_LONG", chunk, offset);
+	case OP_SET_LOCAL:
+		return byte_instruction("OP_SET_LOCAL", chunk, offset);
+	case OP_SET_LOCAL_LONG:
+		return byte_long_instruction("OP_SET_LOCAL_LONG", chunk, offset);
 	case OP_NIL:
 		return simple_instruction("OP_NIL", offset);
 	case OP_TRUE:

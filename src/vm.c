@@ -271,6 +271,30 @@ static InterpretResult run() {
 			vm_push(value);
 			break;
 		}
+		case OP_GET_LOCAL: {
+			uint8_t slot = READ_BYTE();
+			vm_push(vm.stack[slot]);
+			break;
+		}
+		case OP_GET_LOCAL_LONG: {
+			uint32_t slot = READ_BYTE();
+			slot |= READ_BYTE() << 8;
+			slot |= READ_BYTE() << 16;
+			vm_push(vm.stack[slot]);
+			break;
+		}
+		case OP_SET_LOCAL: {
+			uint8_t slot = READ_BYTE();
+			vm.stack[slot] = vm_peek(0);
+			break;
+		}
+		case OP_SET_LOCAL_LONG: {
+			uint32_t slot = READ_BYTE();
+			slot |= READ_BYTE() << 8;
+			slot |= READ_BYTE() << 16;
+			vm.stack[slot] = vm_peek(0);
+			break;
+		}
 		case OP_PRINT: {
 			value_println(vm_pop());
 			break;
