@@ -159,6 +159,8 @@ static bool call_value(Value callee, uint8_t argc) {
 }
 
 static InterpretResult run() {
+	// TODO: Implement register ip optimization
+	// register uint8_t *ip = vm.chunk->code;
 	CallFrame *frame = &vm.frames[vm.frame_count - 1];
 
   #define READ_BYTE() (*frame->ip++)
