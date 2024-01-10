@@ -86,6 +86,9 @@ void object_print(Value val) {
 	case OBJ_FUNCTION:
 		function_print(AS_FUNCTION(val));
 		break;
+	case OBJ_NATIVE:
+		printf("<native fn>");
+		break;
 	}
 }
 
@@ -103,4 +106,10 @@ void function_print(ObjectFunction *function) {
 		return;
 	}
 	printf("<fn %s>", function->name->chars);
+}
+
+ObjectNative *native_new(NativeFn function) {
+	ObjectNative *native = ALLOCATE_OBJ(ObjectNative, OBJ_NATIVE, true);
+	native->function = function;
+	return native;
 }
