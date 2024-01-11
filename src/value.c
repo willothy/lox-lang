@@ -28,6 +28,17 @@ void value_array_free(ValueArray *array) {
 }
 
 void value_print(Value value) {
+#ifdef NAN_BOXING
+	if (IS_BOOL(value)) {
+		printf(AS_BOOL(value) ? "true" : "false");
+	} else if (IS_NIL(value)) {
+		printf("nil");
+	} else if (IS_NUMBER(value)) {
+		printf("%g", AS_NUMBER(value));
+	} else if (IS_OBJ(value)) {
+		object_print(value);
+	}
+#else
 	switch (value.type) {
 	case VAL_NUMBER:
 		printf("%g", AS_NUMBER(value));
@@ -42,6 +53,7 @@ void value_print(Value value) {
 		object_print(value);
 		break;
 	}
+#endif
 }
 
 void value_println(Value value) {
@@ -50,6 +62,9 @@ void value_println(Value value) {
 }
 
 bool value_equal(Value a, Value b) {
+#ifdef NAN_BOXING
+	return a == b;
+#else
 	if (a.type != b.type){
 		return false;
 	}
@@ -66,14 +81,31 @@ bool value_equal(Value a, Value b) {
 	default:
 		return false;
 	}
+#endif
 }
 
 bool value_is_falsy(Value value) {
 	return IS_NIL(value) || (IS_BOOL(value) &&!AS_BOOL(value));
 }
 
+ValueType value_type(Value value) {
+	if (IS_OBJ(value)) {
+		return VAL_OBJ;
+	}
+
+	if (IS_NUMBER(value)) {
+		return VAL_NUMBER;
+	}
+
+	if (IS_BOOL(value)) {
+		return VAL_BOOL;
+	}
+
+	return VAL_NIL;
+}
+
 const ConstStr value_type_name(Value value) {
-	switch (value.type) {
+	switch (value_type(value)) {
 	case VAL_BOOL:
 		return CONST_STR(bool);
 	case VAL_NIL:
@@ -81,7 +113,7 @@ const ConstStr value_type_name(Value value) {
 	case VAL_NUMBER:
 		return CONST_STR(number);
 	case VAL_OBJ:
-		switch (object_type(value.as.object)) {
+		switch (object_type(AS_OBJ(value))) {
 		case OBJ_STRING:
 			return CONST_STR(string);
 		case OBJ_FUNCTION:
@@ -96,3 +128,15 @@ const ConstStr value_type_name(Value value) {
 	}
 }
 
+bool value_is_of_type(Value value, ValueType type) {
+	switch(type) {
+	case VAL_BOOL:
+		return IS_BOOL(value);
+	case VAL_NIL:
+		return IS_NIL(value);
+	case VAL_NUMBER:
+		return IS_NUMBER(value);
+	case VAL_OBJ:
+		return IS_OBJ(value);
+	}
+}

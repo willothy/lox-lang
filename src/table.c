@@ -21,7 +21,7 @@ void table_free(Table *table) {
 }
 
 static Entry *table_find_entry(Entry *entries, size_t capacity, ObjectString *key) {
-	uint32_t index = key->hash % capacity;
+	uint32_t index = key->hash & (capacity - 1);
 	Entry *tombstone = NULL;
 
 	for (;;) {
@@ -41,7 +41,7 @@ static Entry *table_find_entry(Entry *entries, size_t capacity, ObjectString *ke
 		} else if (entry->key == key) {
 			return entry;
 		}
-		index = (index + 1) % capacity;
+		index = (index + 1) & (capacity - 1);
 	}
 }
 
@@ -129,7 +129,7 @@ ObjectString* table_find_string(Table *table, const char *chars, size_t length, 
 	if (table->count == 0) {
 		return NULL;
 	}
-	uint32_t index = hash % table->capacity;
+	uint32_t index = hash & (table->capacity - 1);
 	for (;;) {
 		Entry *entry = &table->entries[index];
 		if (entry->key == NULL) {
@@ -143,7 +143,7 @@ ObjectString* table_find_string(Table *table, const char *chars, size_t length, 
 			// found the string
 			return entry->key;
 		}
-		index = (index + 1) % table->capacity;
+		index = (index + 1) & (table->capacity - 1);
 	}
 }
 

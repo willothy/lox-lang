@@ -37,6 +37,66 @@ static Value type_native(uint8_t argc, Value *args) {
 	return OBJ_VAL(string);
 }
 
+static Value is_type_native(uint8_t argc, Value *args) {
+	const Value value = args[0];
+	const Value expected = args[1];
+
+	if (!IS_STRING(expected)) {
+		// TODO: this should be an error
+		return BOOL_VAL(false);
+	}
+
+	const ObjectString *string = AS_STRING(expected);
+	// "nil" is the shortest type name
+	if (string->length < 3) {
+		return BOOL_VAL(false);
+	}
+
+	switch (string->chars[0]) {
+	case 'n':
+		if (string->chars[1] == 'i' && string->chars[2] == 'l') {
+			return BOOL_VAL(IS_NIL(value));
+		} else if (string->chars[1] == 'u') {
+			if (string->length != 6 || strncmp(&string->chars[2], "mber", 4) != 0) {
+				break;
+			}
+			return BOOL_VAL(IS_NUMBER(value));
+		} else if (string->chars[1] == 'a') {
+			if (string->length != 6 || strncmp(&string->chars[2], "tive", 4) != 0) {
+				break;
+			}
+			return BOOL_VAL(IS_NATIVE(value));
+		}
+		break;
+	case 'b':
+		if (string->length != 4 || strncmp(&string->chars[1], "ool", 3) != 0) {
+			break;
+		}
+		return BOOL_VAL(IS_BOOL(value));
+	case 's':
+		if (string->length != 6 || strncmp(&string->chars[1], "tring", 5) != 0) {
+			break;
+		}
+		return BOOL_VAL(IS_STRING(value));
+	case 'o':
+		if (string->length != 6 || strncmp(&string->chars[1], "bject", 5) != 0) {
+			break;
+		}
+		return BOOL_VAL(IS_OBJ(value));
+	case 'f':
+		if (string->length != 8 || strncmp(&string->chars[1], "unction", 7) != 0) {
+			break;
+		}
+		// do i need to check closure here too?
+		return BOOL_VAL(IS_FUNCTION(value));
+	default:
+		break;
+	}
+
+	// TODO: this should be an error
+	return FALSE_VAL;
+}
+
 static void reset_stack() {
 	vm.stack_top = vm.stack;
 	vm.frame_count = 0;
@@ -76,6 +136,7 @@ char *vm_init() {
 	define_native("clock", clock_native, 0);
 	define_native("print", print_native, 1);
 	define_native("type", type_native, 1);
+	define_native("is", is_type_native, 2);
 
 	return NULL;
 }

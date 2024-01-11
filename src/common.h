@@ -21,6 +21,7 @@
 // #define DEBUG_LOG_GC
 
 #define ALLOW_SHADOWING
+#define NAN_BOXING
 
 #define UINT8_COUNT (UINT8_MAX + 1)
 #define UINT32_COUNT (UINT32_MAX + 1)
