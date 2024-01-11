@@ -35,6 +35,7 @@ typedef struct {
   size_t gray_count;
   size_t gray_capacity;
   Object **gray_stack;
+  // TODO: add nursery and tenured spaces for generational GC
   size_t bytes_allocated;
   size_t next_gc;
 
