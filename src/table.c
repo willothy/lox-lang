@@ -169,3 +169,21 @@ void table_print(Table *table, char *name) {
 	}
 	printf("}\n");
 }
+
+void table_mark(Table *table) {
+	for (size_t i = 0; i < table->capacity; i++) {
+		Entry *entry = &table->entries[i];
+		mark_object((Object *)entry->key);
+		mark_value(entry->value);
+	}
+}
+
+void table_remove_white(Table *table) {
+	for (size_t i = 0; i < table->capacity; i++) {
+		Entry *entry = &table->entries[i];
+		if (entry->key != NULL
+		    && !entry->key->object.marked) {
+			table_delete(table, entry->key);
+		}
+	}
+}

@@ -909,3 +909,11 @@ ObjectFunction* compile(const char *src) {
 
 	return parser.had_error ? NULL : function;
 }
+
+void compiler_mark_roots() {
+	Compiler *compiler = current;
+	while (compiler != NULL) {
+		mark_object((Object*)compiler->function);
+		compiler = compiler->enclosing;
+	}
+}

@@ -60,22 +60,32 @@ char *vm_init() {
 	}
 	vm.stack_size = STACK_INITIAL;
 	reset_stack();
+
 	vm.objects = NULL;
 	vm.open_upvalues = NULL;
+
+	vm.bytes_allocated = 0;
+	vm.next_gc = 1024 * 1024;
+
+	vm.mark_value = true;
+
+	vm.gray_count = 0;
+	vm.gray_capacity = 0;
+	vm.gray_stack = NULL;
+
 	table_init(&vm.strings);
 	table_init(&vm.globals);
 
-	define_native("clock", clock_native, 0);
+	// define_native("clock", clock_native, 0);
 	define_native("print", print_native, 1);
-	define_native("type", type_native, 1);
+	// define_native("type", type_native, 1);
 
 	return NULL;
 }
 
 void vm_free() {
-	FREE_ARRAY(Value, vm.stack, vm.stack_size);
-	table_free(&vm.strings);
 	table_free(&vm.globals);
+	table_free(&vm.strings);
 	free_objects();
 }
 
@@ -156,8 +166,8 @@ static void runtime_error_value(Value value, const char *format, ...) {
 }
 
 static void concatonate() {
-	ObjectString *a = AS_STRING(vm_pop());
-	ObjectString *b = AS_STRING(vm_pop());
+	ObjectString *a = AS_STRING(vm_peek(0));
+	ObjectString *b = AS_STRING(vm_peek(1));
 
 	size_t length = a->length + b->length;
 	char *chars = ALLOCATE(char, length + 1);
@@ -166,6 +176,10 @@ static void concatonate() {
 	chars[length] = '\0';
 
 	ObjectString *result = take_string(chars, length);
+
+	vm_pop();
+	vm_pop();
+
 	vm_push(OBJ_VAL(result));
 }
 

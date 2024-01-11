@@ -3,6 +3,14 @@
 
 #include "common.h"
 
+typedef enum {
+  OBJ_STRING = 0,
+  OBJ_FUNCTION,
+  OBJ_CLOSURE,
+  OBJ_UPVALUE,
+  OBJ_NATIVE,
+} ObjectType;
+
 typedef enum ValueType {
   VAL_BOOL,
   VAL_NIL,
@@ -27,6 +35,8 @@ typedef struct {
   size_t length;
 } ConstStr;
 
+// typedef enum ObjectType {} ObjectType;
+
 #define CONST_STR(str)                                                         \
   (ConstStr) { .chars = #str, .length = sizeof(#str) - 1 }
 
@@ -39,6 +49,9 @@ typedef struct {
 #define AS_NUMBER(value) ((value).as.number)
 #define AS_OBJ(value) ((value).as.object)
 
+#define OBJ_TYPE_MASK 0x0F
+#define OBJ_FLAG_MASK 0xF0
+// #define OBJ_TYPE(object) ((AS_OBJ(object)->flags) & OBJ_TYPE_MASK)
 #define OBJ_TYPE(object) (AS_OBJ(object)->type)
 
 #define IS_BOOL(value) ((value).type == VAL_BOOL)

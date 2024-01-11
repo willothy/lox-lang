@@ -2,6 +2,7 @@
 
 #include "chunk.h"
 #include "memory.h"
+#include "vm.h"
 
 void line_info_init(LineInfo *lines) {
 	lines->count = 0;
@@ -76,7 +77,9 @@ void chunk_free(Chunk *chunk) {
 }
 
 uint32_t chunk_add_constant(Chunk *chunk, Value value) {
+	vm_push(value);
 	value_array_write(&chunk->constants, value);
+	vm_pop();
 	return chunk->constants.count - 1;
 }
 

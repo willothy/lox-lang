@@ -31,6 +31,15 @@ typedef struct {
   Value *stack;
   size_t stack_size;
 
+  // GC
+  size_t gray_count;
+  size_t gray_capacity;
+  Object **gray_stack;
+  size_t bytes_allocated;
+  size_t next_gc;
+
+  bool mark_value;
+
   // Heap / globals
   ObjectUpvalue *open_upvalues;
   Object *objects;

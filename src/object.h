@@ -6,16 +6,8 @@
 #include "memory.h"
 #include "value.h"
 
+// Contained in the high 4 bits of the flags byte.
 typedef enum {
-  OBJ_STRING = 0,
-  OBJ_FUNCTION,
-  OBJ_CLOSURE,
-  OBJ_UPVALUE,
-  OBJ_NATIVE,
-} ObjectType;
-
-struct Object {
-  ObjectType type;
   // Whether the object's underlying memory is owned by the VM.
   // Heap allocations from Object are always owned by the VM and
   // should be GC'd, but data referenced internally by the object may
@@ -27,9 +19,17 @@ struct Object {
   //
   // For strings, this means that the string's `chars` array is owned by the
   // VM and should be freed when the wrapping ObjectString is freed.
+  OBJ_FLAG_OWNED = 1 << 4,
+  OBJ_FLAG_MARK = 1 << 5,
+} ObjectFlags;
+
+typedef struct Object {
+  // uint8_t flags;
+  bool marked;
   bool owned;
+  ObjectType type;
   struct Object *next;
-};
+} Object;
 
 // TODO: use [flexible array
 // members](https://en.wikipedia.org/wiki/Flexible_array_member) to reduce
@@ -97,6 +97,7 @@ typedef struct {
 ObjectString *copy_string(const char *start, size_t length);
 ObjectString *take_string(char *chars, size_t length);
 ObjectString *ref_string(char *chars, size_t length);
+ObjectString *const_string(const char *chars, size_t length);
 
 ObjectUpvalue *upvalue_new(Value *slot);
 

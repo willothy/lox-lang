@@ -2,6 +2,7 @@
 #define clox_memory_h
 
 #include "common.h"
+#include "value.h"
 
 #define FREE(type, pointer) reallocate(pointer, sizeof(type), 0)
 
@@ -15,6 +16,8 @@
   reallocate(pointer, sizeof(type) * (count), 0)
 
 void *reallocate(void *ptr, size_t old_size, size_t new_size);
+void mark_value(Value value);
+void mark_object(Object *object);
 void collect_garbage();
 void free_objects();
 

@@ -1,16 +1,24 @@
 #include <stdlib.h>
 
 #include "memory.h"
+#include "compiler.h"
 #include "vm.h"
 
 #ifdef DEBUG_LOG_GC
 #include <stdio.h>
-#include "debug.h"
 #endif
 
+#define GC_HEAP_GROW_FACTOR 2
+
 void *reallocate(void *ptr, size_t old_size, size_t new_size) {
+	vm.bytes_allocated += new_size - old_size;
+
 #ifdef DEBUG_STRESS_GC
 	if (new_size > old_size) {
+		collect_garbage();
+	}
+#else
+	if (vm.bytes_allocated > vm.next_gc) {
 		collect_garbage();
 	}
 #endif
@@ -26,17 +34,10 @@ void *reallocate(void *ptr, size_t old_size, size_t new_size) {
 	return rv;
 }
 
-void collect_garbage() {
-#ifdef DEBUG_LOG_GC
-	printf("-- gc begin\n");
-#endif
-
-#ifdef DEBUG_LOG_GC
-	printf("-- gc end\n");
-#endif
-}
-
 static void free_object(Object *obj) {
+	if (obj == NULL) {
+		return;
+	}
 #ifdef DEBUG_LOG_GC
 	printf("%p free type %s\n", (void *)obj, object_type_name(obj->type));
 #endif
@@ -73,6 +74,141 @@ static void free_object(Object *obj) {
 	}
 }
 
+void mark_object(Object *obj) {
+	if (obj == NULL || obj->marked) {
+		return;
+	}
+
+#ifdef DEBUG_LOG_GC
+	printf("%p mark ", (void *)obj);
+	value_println(OBJ_VAL(obj));
+#endif
+	obj->marked = true;
+
+	if (vm.gray_capacity < vm.gray_count + 1) {
+		vm.gray_capacity = GROW_CAPACITY(vm.gray_capacity);
+		vm.gray_stack = (Object**)realloc(vm.gray_stack, sizeof(Object *) * vm.gray_capacity);
+		if (vm.gray_stack == NULL) {
+			exit(1);
+		}
+	}
+
+	vm.gray_stack[vm.gray_count++] = obj;
+}
+
+void mark_value(Value value) {
+	if (!IS_OBJ(value)) {
+		return;
+	}
+	mark_object(AS_OBJ(value));
+}
+
+static void mark_roots() {
+	for (Value *slot = vm.stack; slot < vm.stack_top; slot++) {
+		mark_value(*slot);
+	}
+
+	for (size_t i = 0; i < vm.frame_count; i++) {
+		mark_object((Object *)vm.frames[i].closure);
+	}
+
+	for (ObjectUpvalue *upvalue = vm.open_upvalues; upvalue!= NULL; upvalue = upvalue->next) {
+		mark_object((Object *)upvalue);
+	}
+
+	table_mark(&vm.globals);
+
+	compiler_mark_roots();
+}
+
+static void mark_array(ValueArray *array) {
+	for (size_t i = 0; i < array->count; i++) {
+		mark_value(array->values[i]);
+	}
+}
+
+static void blacken_object(Object *obj) {
+#ifdef DEBUG_LOG_GC
+	printf("%p blacken ", (void *)obj);
+	value_println(OBJ_VAL(obj));
+#endif
+
+	switch (obj->type) {
+	case OBJ_FUNCTION: {
+		ObjectFunction *fn = (ObjectFunction *)obj;
+		mark_object((Object *)fn->name);
+		mark_array(&fn->chunk.constants);
+		break;
+	}
+	case OBJ_CLOSURE: {
+		ObjectClosure *closure = (ObjectClosure *)obj;
+		mark_object((Object *)closure->function);
+		for (size_t i = 0; i < closure->upvalue_count; i++) {
+			mark_object((Object *)closure->upvalues[i]);
+		}
+		break;
+	}
+	case OBJ_UPVALUE:
+		mark_value(((ObjectUpvalue *)obj)->closed);
+		break;
+	case OBJ_STRING:
+	case OBJ_NATIVE:
+		break;
+	}
+}
+
+static void trace_references() {
+	while (vm.gray_count > 0) {
+		Object *obj = vm.gray_stack[--vm.gray_count];
+		blacken_object(obj);
+	}
+}
+
+static void sweep() {
+	Object *prev = NULL;
+	Object *obj = vm.objects;
+	while (obj != NULL) {
+		if (obj->marked) {
+			obj->marked = false;
+			prev = obj;
+			obj = obj->next;
+		} else {
+			Object *unreached = obj;
+			obj = obj->next;
+
+			if (prev != NULL) {
+				prev->next = obj;
+			} else {
+				vm.objects = obj;
+			}
+
+			free_object(unreached);
+		}
+	}
+}
+
+void collect_garbage() {
+#ifdef DEBUG_LOG_GC
+	printf("-- gc begin\n");
+	size_t before = vm.bytes_allocated;
+#endif
+
+	mark_roots();
+	trace_references();
+	table_remove_white(&vm.strings);
+	sweep();
+
+	vm.next_gc = vm.bytes_allocated * GC_HEAP_GROW_FACTOR;
+
+#ifdef DEBUG_LOG_GC
+	printf("-- gc end\n");
+	printf("   collected %zu bytes (from %zu to %zu) next at %zu\n",
+	       before - vm.bytes_allocated, before, vm.bytes_allocated,
+	       vm.next_gc);
+	printf("   heap capacity: %zu\n", vm.bytes_allocated);
+#endif
+}
+
 void free_objects() {
 	Object *obj = vm.objects;
 	while (obj) {
@@ -81,4 +217,5 @@ void free_objects() {
 		obj = next;
 	}
 	vm.objects = NULL;
+	free(vm.gray_stack);
 }

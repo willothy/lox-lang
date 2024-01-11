@@ -9,7 +9,6 @@
 #define ALLOCATE_OBJ(type, obj_type, owned) \
 	(type *)allocate_object(sizeof(type), obj_type, owned)
 
-
 static Object* allocate_object(size_t size, ObjectType type, bool owned) {
 #ifdef DEBUG_LOG_GC
 	printf("%p allocate %zu for %s\n", (void *)vm.objects, size, object_type_name(type));
@@ -18,6 +17,7 @@ static Object* allocate_object(size_t size, ObjectType type, bool owned) {
 	Object *obj = (Object *)reallocate(NULL, 0, size);
 	obj->type = type;
 	obj->owned = owned;
+	obj->marked = false;
 	obj->next = vm.objects;
 	vm.objects = obj;
 	return obj;
@@ -53,7 +53,9 @@ static ObjectString* alloc_string(char *chars, size_t length, uint32_t hash, boo
 	str->length = length;
 	str->chars  = chars;
 	str->hash   = hash;
+	vm_push(OBJ_VAL(str));
 	table_set(&vm.strings, str, NIL_VAL);
+	vm_pop();
 	return str;
 }
 
@@ -68,6 +70,19 @@ ObjectString* copy_string(const char *chars, size_t length) {
 	memcpy(heap_chars, chars, length);
 	heap_chars[length] = '\0';
 	return alloc_string(heap_chars, length, hash, true);
+}
+
+ObjectString *const_string(const char *chars, size_t length) {
+	uint32_t hash = hash_string(chars, length);
+	ObjectString *interned = table_find_string(&vm.strings, chars, length, hash);
+	if (interned != NULL) {
+		// If the string is already interned, we should use the interned version
+		// to ensure equality checks work correctly.
+		//
+		// Because the string's memory is not owned by the VM, we do not need to free it.
+		return interned;
+	}
+	return alloc_string((char*)chars, length, hash, false);
 }
 
 ObjectString* ref_string(char *chars, size_t length) {
@@ -162,3 +177,4 @@ ObjectUpvalue *upvalue_new(Value *slot) {
 	upvalue->next = NULL;
 	return upvalue;
 }
+
