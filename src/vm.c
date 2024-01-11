@@ -6,7 +6,6 @@
 #include "chunk.h"
 #include "memory.h"
 #include "vm.h"
-#include "compiler.h"
 #include "object.h"
 #include "value.h"
 
@@ -562,12 +561,7 @@ static InterpretResult run() {
 	#undef BINARY_OP
 }
 
-InterpretResult vm_interpret(const char *src) {
-	ObjectFunction *function = compile(src);
-	if (!function) {
-		return INTERPRET_COMPILE_ERROR;
-	}
-
+InterpretResult vm_interpret(ObjectFunction *function) {
 	vm_push(OBJ_VAL(function));
 	ObjectClosure *closure = closure_new(function);
 	vm_pop();

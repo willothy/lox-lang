@@ -1,7 +1,25 @@
+#include "compiler.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+
+#ifdef WIN32
+#include <io.h>
+#define R_OK 4
+#define access _access
+#else
+#include <unistd.h>
+#endif
 
 #include "vm.h"
+
+static ObjectFunction *try_compile(const char *src) {
+	ObjectFunction *function = compile(src);
+	if (!function) {
+		exit(65);
+	}
+	return function;
+}
 
 static void repl() {
 	char line[1024];
@@ -13,8 +31,7 @@ static void repl() {
 			break;
 		}
 
-		vm_interpret(line);
-		table_print(&vm.globals, "globals");
+		vm_interpret(try_compile(line));
 	}
 }
 
@@ -42,9 +59,34 @@ static char *read_file(const char *path) {
 	return buffer;
 }
 
-static void run_file(const char *path) {
+static void run_file(const char *path, const char *output_path) {
 	char *src = read_file(path);
-	InterpretResult res = vm_interpret(src);
+
+	ObjectFunction *function = try_compile(src);
+
+	if (output_path) {
+		// FILE *file = fopen(output_path, "wb");
+		// if (!file) {
+		// 	printf("Could not open file %s\n", output_path);
+		// 	exit(74);
+		// }
+		// char *magic = "CLOX";
+		// Chunk chunk = function->chunk;
+		// TODO: figure out how to write const strings to/from bytecode file,
+		// transition from constants array to static segment in code.
+		// size_t buf_size =
+		// 	4 // magic
+		// 	+ 1 // code size
+		// 	+ 1 // debug info size
+		// 	+ 1 // constants size
+		// 	+ chunk.count // code
+		// 	+ (chunk.lines.count * sizeof(Line)) // debug info
+		// 	+ (chunk.constants.count * sizeof(Value)) // constants
+		// 	;
+		// fclose(file);
+	}
+
+	InterpretResult res = vm_interpret(function);
 	free (src);
 
 	if (res == INTERPRET_COMPILE_ERROR) exit(65);
@@ -58,15 +100,45 @@ int main(int argc, const char *argv[]) {
 		abort();
 	}
 
+	const char *input = NULL;
+	const char *output = NULL;
+	bool error = false;
 	switch(argc) {
 	case 1:
 		repl();
 		break;
-	case 2:
-		run_file(argv[1]);
-		break;
 	default:
-		printf("Usage: clox [path]\n");
+		for (int i = 1; i < argc; i++) {
+			if (strncmp(argv[i], "-o", 2) == 0 || strncmp(argv[i], "--output", 8) == 0) {
+				output = argv[++i];
+				if (output == NULL) {
+					error = true;
+					printf("Missing output file name\n");
+					break;
+				}
+			} else {
+				if (access(argv[i], R_OK) == 0) {
+					input = argv[i];
+				} else {
+					printf("Unexpected argument or nonexistent file %s\n", argv[i]);
+					error = true;
+					break;
+				}
+			}
+		}
+		if (error || input == NULL) {
+			if (input == NULL) {
+				printf("Missing input file name\n");
+			}
+			printf(
+				"Usage: clox [path]\n"
+				"\n"
+				"  -o --output <file> Output bytecode\n"
+				);
+			break;
+		} else {
+			run_file(input, output);
+		}
 		break;
 	}
 

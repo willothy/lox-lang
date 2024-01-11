@@ -59,6 +59,6 @@ void vm_push(Value value);
 Value vm_pop();
 Value vm_peek(size_t distance);
 
-InterpretResult vm_interpret(const char *source);
+InterpretResult vm_interpret(ObjectFunction *function);
 
 #endif
