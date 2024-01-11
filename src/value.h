@@ -47,6 +47,7 @@ void value_array_free(ValueArray *array);
 
 void value_print(Value value);
 void value_println(Value value);
+ObjectString *value_to_string(Value value);
 
 bool value_equal(Value a, Value b);
 bool value_is_falsy(Value value);

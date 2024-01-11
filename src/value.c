@@ -71,3 +71,4 @@ bool value_equal(Value a, Value b) {
 bool value_is_falsy(Value value) {
 	return IS_NIL(value) || (IS_BOOL(value) &&!AS_BOOL(value));
 }
+

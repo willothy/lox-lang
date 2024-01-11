@@ -9,6 +9,8 @@
 typedef enum {
   OBJ_STRING,
   OBJ_FUNCTION,
+  OBJ_CLOSURE,
+  OBJ_UPVALUE,
   OBJ_NATIVE,
 } ObjectType;
 
@@ -49,26 +51,36 @@ static inline bool is_obj_type(Value value, ObjectType type) {
 #define IS_STRING(value) is_obj_type(value, OBJ_STRING)
 #define IS_FUNCTION(value) is_obj_type(value, OBJ_FUNCTION)
 #define IS_NATIVE(value) is_obj_type(value, OBJ_NATIVE)
+#define IS_CLOSURE(value) is_obj_type(value, OBJ_CLOSURE)
 
 #define AS_STRING(value) ((ObjectString *)AS_OBJ(value))
 #define AS_CSTRING(value) (((ObjectString *)AS_OBJ(value))->chars)
 #define AS_FUNCTION(value) ((ObjectFunction *)AS_OBJ(value))
 #define AS_NATIVE(value) ((ObjectNative *)AS_OBJ(value))
 #define AS_NATIVE_FN(value) (((ObjectNative *)AS_OBJ(value))->function)
-
-ObjectString *copy_string(const char *start, size_t length);
-ObjectString *take_string(char *chars, size_t length);
-ObjectString *ref_string(char *chars, size_t length);
+#define AS_CLOSURE(value) ((ObjectClosure *)AS_OBJ(value))
 
 typedef struct {
   Object object;
   Chunk chunk;
   ObjectString *name;
+  uint8_t upvalue_count;
   uint8_t arity; // I don't think anyone will use more than 255 args ever.
 } ObjectFunction;
 
-ObjectFunction *function_new();
-void function_print(ObjectFunction *function);
+typedef struct ObjectUpvalue {
+  Object obj;
+  Value *location;
+  Value closed;
+  struct ObjectUpvalue *next;
+} ObjectUpvalue;
+
+typedef struct {
+  Object obj;
+  ObjectFunction *function;
+  ObjectUpvalue **upvalues;
+  uint8_t upvalue_count;
+} ObjectClosure;
 
 typedef Value (*NativeFn)(uint8_t argc, Value *args);
 
@@ -76,8 +88,18 @@ typedef Value (*NativeFn)(uint8_t argc, Value *args);
 typedef struct {
   Object obj;
   NativeFn function;
-  uint32_t arity;
+  uint8_t arity;
 } ObjectNative;
+
+ObjectString *copy_string(const char *start, size_t length);
+ObjectString *take_string(char *chars, size_t length);
+ObjectString *ref_string(char *chars, size_t length);
+
+ObjectUpvalue *upvalue_new(Value *slot);
+
+ObjectClosure *closure_new(ObjectFunction *function);
+ObjectFunction *function_new();
+void function_print(ObjectFunction *function);
 
 ObjectNative *native_new(NativeFn function, uint8_t arity);
 

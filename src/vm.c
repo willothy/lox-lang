@@ -18,8 +18,18 @@ static Value clock_native(uint8_t argc, Value *args) {
 	return NUMBER_VAL((double)clock() / CLOCKS_PER_SEC);
 }
 
+// The print() function, replacing the print statement from the book.
 static Value print_native(uint8_t argc, Value *args) {
+#ifdef DEBUG_TRACE_EXECUTION
+	// Make prints easier to see when there's a lot of tracing output.
+	printf("-----OUTPUT-----\n");
+#endif
+
 	value_println(args[0]);
+
+#ifdef DEBUG_TRACE_EXECUTION
+	printf("----------------\n");
+#endif
 	return NIL_VAL;
 }
 
@@ -44,6 +54,7 @@ char *vm_init() {
 	vm.stack_size = STACK_INITIAL;
 	reset_stack();
 	vm.objects = NULL;
+	vm.open_upvalues = NULL;
 	table_init(&vm.strings);
 	table_init(&vm.globals);
 
@@ -98,7 +109,31 @@ static void runtime_error(const char *format,...) {
 	// Print the stack trace
 	for (size_t i = 0; i < vm.frame_count; i++) {
 		CallFrame *frame = &vm.frames[i];
-		ObjectFunction *function = frame->function;
+		ObjectFunction *function = frame->closure->function;
+		size_t inst = frame->ip - function->chunk.code - 1;
+		Linenr line = line_info_get(&function->chunk.lines, inst);
+		fprintf(stderr, "[line %zu] in ", line);
+		if (function->name == NULL) {
+			fprintf(stderr, "script\n");
+		} else {
+			fprintf(stderr, "%s()\n", function->name->chars);
+		}
+	}
+
+	reset_stack();
+}
+
+static void runtime_error_value(Value value, const char *format, ...) {
+	va_list args;
+	va_start(args, format);
+	vfprintf(stderr, format, args);
+	va_end(args);
+	value_println(value);
+
+	// Print the stack trace
+	for (size_t i = 0; i < vm.frame_count; i++) {
+		CallFrame *frame = &vm.frames[i];
+		ObjectFunction *function = frame->closure->function;
 		size_t inst = frame->ip - function->chunk.code - 1;
 		Linenr line = line_info_get(&function->chunk.lines, inst);
 		fprintf(stderr, "[line %zu] in ", line);
@@ -126,9 +161,9 @@ static void concatonate() {
 	vm_push(OBJ_VAL(result));
 }
 
-static bool call(ObjectFunction *function, uint8_t argc) {
-	if (argc != function->arity) {
-		runtime_error("Expected %d arguments but got %d.", function->arity, argc);
+static bool call(ObjectClosure *closure, uint8_t argc) {
+	if (argc != closure->function->arity) {
+		runtime_error("Expected %d arguments but got %d.", closure->function->arity, argc);
 		return false;
 	}
 
@@ -138,8 +173,8 @@ static bool call(ObjectFunction *function, uint8_t argc) {
 	}
 
 	CallFrame *frame = &vm.frames[vm.frame_count++];
-	frame->function = function;
-	frame->ip = function->chunk.code;
+	frame->closure = closure;
+	frame->ip = closure->function->chunk.code;
 	frame->slots = vm.stack_top - argc - 1; // -1 to account for reserved stack slot 0
 	return true;
 }
@@ -148,7 +183,10 @@ static bool call_value(Value callee, uint8_t argc) {
 	if (IS_OBJ(callee)) {
 		switch (OBJ_TYPE(callee)) {
 		case OBJ_FUNCTION:
-			return call(AS_FUNCTION(callee), argc);
+			// return call(AS_FUNCTION(callee), argc);
+			break;
+		case OBJ_CLOSURE:
+			return call(AS_CLOSURE(callee), argc);
 		case OBJ_NATIVE: {
 			ObjectNative *native = AS_NATIVE(callee);
 			if (argc != native->arity) {
@@ -161,12 +199,47 @@ static bool call_value(Value callee, uint8_t argc) {
 			vm_push(result);
 			return true;
 		}
+		case OBJ_UPVALUE:
 		case OBJ_STRING:
 			break;
 		}
 	}
-	runtime_error("Can only call functions and classes.");
+	runtime_error_value(callee, "Can only call functions and classes, attempted to call ");
 	return false;
+}
+
+static ObjectUpvalue* upvalue_capture(Value *local) {
+	ObjectUpvalue *prev_upvalue = NULL;
+
+	ObjectUpvalue *upvalue = vm.open_upvalues;
+	while (upvalue != NULL && upvalue->location > local) {
+		prev_upvalue = upvalue;
+		upvalue = upvalue->next;
+	}
+
+	if (upvalue != NULL && upvalue->location == local) {
+		return upvalue;
+	}
+
+	ObjectUpvalue *created = upvalue_new(local);
+	created->next = upvalue;
+
+	if (prev_upvalue == NULL) {
+		vm.open_upvalues = created;
+	} else {
+		prev_upvalue->next = created;
+	}
+
+	return created;
+}
+
+static void close_upvalues(Value *last) {
+	while (vm.open_upvalues != NULL && vm.open_upvalues->location >= last) {
+		ObjectUpvalue *upvalue = vm.open_upvalues;
+		upvalue->closed = *upvalue->location;
+		upvalue->location = &upvalue->closed;
+		vm.open_upvalues = upvalue->next;
+	}
 }
 
 static InterpretResult run() {
@@ -177,9 +250,9 @@ static InterpretResult run() {
   #define READ_BYTE() (*frame->ip++)
 	#define READ_WORD() (frame->ip += 2, (uint16_t)((frame->ip[-2] << 8) | frame->ip[-1]))
 	#define READ_DWORD() (frame->ip += 4, (uint32_t)((frame->ip[-4] << 24) | (frame->ip[-3] << 16) | (frame->ip[-2] << 8) | frame->ip[-1]))
-  #define READ_CONSTANT() (frame->function->chunk.constants.values[READ_BYTE()])
+  #define READ_CONSTANT() (frame->closure->function->chunk.constants.values[READ_BYTE()])
 	#define READ_CONSTANT_LONG()    \
-		(frame->function->chunk.constants.values[READ_BYTE() | (READ_BYTE() << 8) | (READ_BYTE() << 16)])
+		(frame->closure->function->chunk.constants.values[READ_BYTE() | (READ_BYTE() << 8) | (READ_BYTE() << 16)])
 	#define BINARY_OP(value_type, op) \
 		if (!IS_NUMBER(vm_peek(0)) || !IS_NUMBER(vm_peek(1))) { \
 			runtime_error("Operands must be numbers."); \
@@ -204,7 +277,7 @@ static InterpretResult run() {
 			printf(" ]");
 		}
 		printf("\n");
-		disassemble_instruction(&frame->function->chunk, (size_t)(frame->ip - frame->function->chunk.code));
+		disassemble_instruction(&frame->closure->function->chunk, (size_t)(frame->ip - frame->closure->function->chunk.code));
     #endif
 
 		uint8_t instruction;
@@ -296,8 +369,54 @@ static InterpretResult run() {
 			frame = &vm.frames[vm.frame_count - 1];
 			break;
 		}
+		case OP_CLOSURE: {
+			ObjectFunction *function = AS_FUNCTION(READ_CONSTANT());
+			ObjectClosure *closure = closure_new(function);
+			vm_push(OBJ_VAL(closure));
+			for (uint8_t i = 0; i < closure->function->upvalue_count; i++) {
+				uint8_t is_local = READ_BYTE();
+				uint8_t index = READ_BYTE();
+				if (is_local) {
+					closure->upvalues[i] = upvalue_capture(&frame->slots[index]);
+				} else {
+					closure->upvalues[i] = frame->closure->upvalues[index];
+				}
+			}
+			break;
+		}
+		case OP_CLOSURE_LONG: {
+			ObjectFunction *function = AS_FUNCTION(READ_CONSTANT_LONG());
+			ObjectClosure *closure = closure_new(function);
+
+			vm_push(OBJ_VAL(closure));
+			for (uint8_t i = 0; i < closure->function->upvalue_count; i++) {
+				uint8_t is_local = READ_BYTE();
+				uint8_t index = READ_BYTE();
+				if (is_local) {
+					closure->upvalues[i] = upvalue_capture(&frame->slots[index]);
+				} else {
+					closure->upvalues[i] = frame->closure->upvalues[index];
+				}
+			}
+			break;
+		}
+		case OP_GET_UPVALUE: {
+			uint8_t index = READ_BYTE();
+			vm_push(*frame->closure->upvalues[index]->location);
+			break;
+		}
+		case OP_SET_UPVALUE: {
+			uint8_t index = READ_BYTE();
+			*frame->closure->upvalues[index]->location = vm_peek(0);
+			break;
+		}
+		case OP_CLOSE_UPVALUE:
+			close_upvalues(vm.stack_top - 1);
+			vm_pop();
+			break;
 		case OP_RETURN: {
 			Value result = vm_pop();
+			close_upvalues(frame->slots);
 			vm.frame_count--;
 			if (vm.frame_count == 0) {
 				vm_pop();
@@ -432,7 +551,10 @@ InterpretResult vm_interpret(const char *src) {
 	}
 
 	vm_push(OBJ_VAL(function));
-	call(function, 0);
+	ObjectClosure *closure = closure_new(function);
+	vm_pop();
+	vm_push(OBJ_VAL(closure));
+	call(closure, 0);
 
 	return run();
 }

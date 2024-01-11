@@ -83,11 +83,17 @@ void object_print(Value val) {
 		// specifier to print only the characters in the string.
 		printf("%.*s", (int)AS_STRING(val)->length, AS_CSTRING(val));
 		break;
+	case OBJ_CLOSURE:
+		function_print(AS_CLOSURE(val)->function);
+		break;
 	case OBJ_FUNCTION:
 		function_print(AS_FUNCTION(val));
 		break;
 	case OBJ_NATIVE:
 		printf("<native fn>");
+		break;
+	case OBJ_UPVALUE: // unreachable
+		printf("<upvalue>");
 		break;
 	}
 }
@@ -96,6 +102,7 @@ ObjectFunction *function_new() {
 	ObjectFunction *function = ALLOCATE_OBJ(ObjectFunction, OBJ_FUNCTION, true);
 	function->arity = 0;
 	function->name = NULL;
+	function->upvalue_count = 0;
 	chunk_init(&function->chunk);
 	return function;
 }
@@ -113,4 +120,26 @@ ObjectNative *native_new(NativeFn function, uint8_t arity) {
 	native->function = function;
 	native->arity = arity;
 	return native;
+}
+
+ObjectClosure *closure_new(ObjectFunction *function) {
+	ObjectUpvalue **upvalues = ALLOCATE(ObjectUpvalue*, function->upvalue_count);
+
+	for (int i = 0; i < function->upvalue_count; i++) {
+		upvalues[i] = NULL;
+	}
+
+	ObjectClosure *closure = ALLOCATE_OBJ(ObjectClosure, OBJ_CLOSURE, true);
+	closure->function = function;
+	closure->upvalues = upvalues;
+	closure->upvalue_count = function->upvalue_count;
+	return closure;
+}
+
+ObjectUpvalue *upvalue_new(Value *slot) {
+	ObjectUpvalue *upvalue = ALLOCATE_OBJ(ObjectUpvalue, OBJ_UPVALUE, true);
+	upvalue->location = slot;
+	upvalue->closed = NIL_VAL;
+	upvalue->next = NULL;
+	return upvalue;
 }

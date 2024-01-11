@@ -10,7 +10,7 @@
 #define STACK_INITIAL (FRAMES_MAX * UINT8_COUNT)
 
 typedef struct {
-  ObjectFunction *function;
+  ObjectClosure *closure;
   uint8_t *ip;
   Value *slots;
 } CallFrame;
@@ -32,6 +32,7 @@ typedef struct {
   size_t stack_size;
 
   // Heap / globals
+  ObjectUpvalue *open_upvalues;
   Object *objects;
   Table strings;
   // TODO: come up with a faster way to look up globals (maybe by index instead

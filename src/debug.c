@@ -2,6 +2,7 @@
 
 #include "debug.h"
 #include "chunk.h"
+#include "object.h"
 #include "value.h"
 
 static size_t simple_instruction(const char *name, size_t offset) {
@@ -81,6 +82,44 @@ size_t disassemble_instruction(Chunk *chunk, size_t offset) {
 		return byte_instruction("OP_CALL", chunk, offset);
 	// case OP_PRINT:
 	// 	return simple_instruction("OP_PRINT", offset);
+	case OP_CLOSURE: {
+		offset++;
+		uint8_t constant = chunk->code[offset++];
+		printf("%-16s %4d ", "OP_CLOSURE", constant);
+		value_println(chunk->constants.values[constant]);
+
+		ObjectFunction *function = AS_FUNCTION(chunk->constants.values[constant]);
+		for (int i = 0; i < function->upvalue_count; i++) {
+			uint8_t is_local = chunk->code[offset++];
+			uint8_t index = chunk->code[offset++];
+			printf("%04zu      |                     %s %d\n", offset - 2, is_local ? "local" : "upvalue", index);
+		}
+
+		return offset;
+	}
+	case OP_CLOSURE_LONG: {
+		offset++;
+		uint32_t constant = chunk->code[offset++];
+		constant |= chunk->code[offset++] << 8;
+		constant |= chunk->code[offset++] << 16;
+		printf("%-16s %4d ", "OP_CLOSURE_LONG", constant);
+		value_println(chunk->constants.values[constant]);
+
+		ObjectFunction *function = AS_FUNCTION(chunk->constants.values[constant]);
+		for (int i = 0; i < function->upvalue_count; i++) {
+			uint8_t is_local = chunk->code[offset++];
+			uint8_t index = chunk->code[offset++];
+			printf("%04zu      |                     %s %d\n", offset - 2, is_local ? "local" : "upvalue", index);
+		}
+
+		return offset;
+	}
+	case OP_GET_UPVALUE:
+		return byte_instruction("OP_GET_UPVALUE", chunk, offset);
+	case OP_SET_UPVALUE:
+		return byte_instruction("OP_SET_UPVALUE", chunk, offset);
+	case OP_CLOSE_UPVALUE:
+		return simple_instruction("OP_CLOSE_UPVALUE", offset);
 	case OP_POP:
 		return simple_instruction("OP_POP", offset);
 	case OP_CONSTANT:
