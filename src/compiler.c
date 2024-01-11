@@ -258,8 +258,14 @@ static void parse_precedence(Precedence precedence) {
 	}
 }
 
+static void function(FunctionType type);
+
 static void expression() {
-	parse_precedence(PREC_ASSIGNMENT);
+	if (match(TOKEN_FUN)) {
+		function(FN_TYPE_FUNCTION);
+	} else {
+		parse_precedence(PREC_ASSIGNMENT);
+	}
 }
 
 static void expression_statement() {
