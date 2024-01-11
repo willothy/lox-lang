@@ -15,6 +15,7 @@
   reallocate(pointer, sizeof(type) * (count), 0)
 
 void *reallocate(void *ptr, size_t old_size, size_t new_size);
+void collect_garbage();
 void free_objects();
 
 #define ALLOCATE(type, count) (type *)reallocate(NULL, 0, count * sizeof(type))

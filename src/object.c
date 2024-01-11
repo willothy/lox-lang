@@ -9,7 +9,12 @@
 #define ALLOCATE_OBJ(type, obj_type, owned) \
 	(type *)allocate_object(sizeof(type), obj_type, owned)
 
+
 static Object* allocate_object(size_t size, ObjectType type, bool owned) {
+#ifdef DEBUG_LOG_GC
+	printf("%p allocate %zu for %s\n", (void *)vm.objects, size, object_type_name(type));
+#endif
+
 	Object *obj = (Object *)reallocate(NULL, 0, size);
 	obj->type = type;
 	obj->owned = owned;
@@ -18,6 +23,20 @@ static Object* allocate_object(size_t size, ObjectType type, bool owned) {
 	return obj;
 }
 
+const char *object_type_name(ObjectType type) {
+	switch(type) {
+	case OBJ_STRING:
+		return "string";
+	case OBJ_CLOSURE:
+		return "closure";
+	case OBJ_FUNCTION:
+		return "function";
+	case OBJ_NATIVE:
+		return "native";
+	case OBJ_UPVALUE:
+		return "upvalue";
+	}
+}
 
 // fnv-1a hash function
 static uint32_t hash_string(const char *key, size_t length) {

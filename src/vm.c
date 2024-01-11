@@ -33,6 +33,13 @@ static Value print_native(uint8_t argc, Value *args) {
 	return NIL_VAL;
 }
 
+static Value type_native(uint8_t argc, Value *args) {
+	const ConstStr type = value_type_name(args[0]);
+	ObjectString *string = copy_string(type.chars, type.length);
+
+	return OBJ_VAL(string);
+}
+
 static void reset_stack() {
 	vm.stack_top = vm.stack;
 	vm.frame_count = 0;
@@ -60,6 +67,7 @@ char *vm_init() {
 
 	define_native("clock", clock_native, 0);
 	define_native("print", print_native, 1);
+	define_native("type", type_native, 1);
 
 	return NULL;
 }

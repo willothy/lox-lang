@@ -72,3 +72,27 @@ bool value_is_falsy(Value value) {
 	return IS_NIL(value) || (IS_BOOL(value) &&!AS_BOOL(value));
 }
 
+const ConstStr value_type_name(Value value) {
+	switch (value.type) {
+	case VAL_BOOL:
+		return CONST_STR(bool);
+	case VAL_NIL:
+		return CONST_STR(nil);
+	case VAL_NUMBER:
+		return CONST_STR(number);
+	case VAL_OBJ:
+		switch (AS_OBJ(value)->type) {
+		case OBJ_STRING:
+			return CONST_STR(string);
+		case OBJ_FUNCTION:
+			return CONST_STR(function);
+		case OBJ_CLOSURE:
+			return CONST_STR(closure);
+		case OBJ_UPVALUE:
+			return value_type_name(AS_UPVALUE(value)->closed);
+		case OBJ_NATIVE:
+			return CONST_STR(native);
+		}
+	}
+}
+

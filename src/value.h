@@ -3,7 +3,12 @@
 
 #include "common.h"
 
-typedef enum ValueType { VAL_BOOL, VAL_NIL, VAL_NUMBER, VAL_OBJ } ValueType;
+typedef enum ValueType {
+  VAL_BOOL,
+  VAL_NIL,
+  VAL_NUMBER,
+  VAL_OBJ,
+} ValueType;
 
 typedef struct Object Object;
 typedef struct ObjectString ObjectString;
@@ -16,6 +21,14 @@ typedef struct {
     Object *object;
   } as;
 } Value;
+
+typedef struct {
+  const char *chars;
+  size_t length;
+} ConstStr;
+
+#define CONST_STR(str)                                                         \
+  (ConstStr) { .chars = #str, .length = sizeof(#str) - 1 }
 
 #define BOOL_VAL(value) ((Value){VAL_BOOL, {.boolean = value}})
 #define NIL_VAL ((Value){VAL_NIL, {.number = 0}})
@@ -51,5 +64,6 @@ ObjectString *value_to_string(Value value);
 
 bool value_equal(Value a, Value b);
 bool value_is_falsy(Value value);
+const ConstStr value_type_name(Value value);
 
 #endif

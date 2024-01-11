@@ -3,7 +3,18 @@
 #include "memory.h"
 #include "vm.h"
 
+#ifdef DEBUG_LOG_GC
+#include <stdio.h>
+#include "debug.h"
+#endif
+
 void *reallocate(void *ptr, size_t old_size, size_t new_size) {
+#ifdef DEBUG_STRESS_GC
+	if (new_size > old_size) {
+		collect_garbage();
+	}
+#endif
+
 	if (new_size == 0) {
 		free(ptr);
 		return NULL;
@@ -15,7 +26,21 @@ void *reallocate(void *ptr, size_t old_size, size_t new_size) {
 	return rv;
 }
 
+void collect_garbage() {
+#ifdef DEBUG_LOG_GC
+	printf("-- gc begin\n");
+#endif
+
+#ifdef DEBUG_LOG_GC
+	printf("-- gc end\n");
+#endif
+}
+
 static void free_object(Object *obj) {
+#ifdef DEBUG_LOG_GC
+	printf("%p free type %s\n", (void *)obj, object_type_name(obj->type));
+#endif
+
 	switch (obj->type) {
 	case OBJ_STRING: {
 		ObjectString *str = (ObjectString *)obj;
