@@ -81,7 +81,7 @@ const ConstStr value_type_name(Value value) {
 	case VAL_NUMBER:
 		return CONST_STR(number);
 	case VAL_OBJ:
-		switch (AS_OBJ(value)->type) {
+		switch (object_type(value.as.object)) {
 		case OBJ_STRING:
 			return CONST_STR(string);
 		case OBJ_FUNCTION:

@@ -15,10 +15,11 @@ static Object* allocate_object(size_t size, ObjectType type, bool owned) {
 #endif
 
 	Object *obj = (Object *)reallocate(NULL, 0, size);
-	obj->type = type;
-	obj->owned = owned;
-	obj->marked = !vm.mark_value;
-	obj->next = vm.objects;
+	// obj->header = (uint64_t)vm.objects | (uint64_t)type << 56 | (uint64_t)owned << 57;
+	obj->header = (uint64_t)vm.objects << 16
+	              | (uint64_t)owned << 9
+	              | (uint64_t)vm.mark_value << 8
+	              | (uint64_t)type;
 	vm.objects = obj;
 	return obj;
 }

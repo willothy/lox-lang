@@ -52,7 +52,7 @@ typedef struct {
 #define OBJ_TYPE_MASK 0x0F
 #define OBJ_FLAG_MASK 0xF0
 // #define OBJ_TYPE(object) ((AS_OBJ(object)->flags) & OBJ_TYPE_MASK)
-#define OBJ_TYPE(object) (AS_OBJ(object)->type)
+#define OBJ_TYPE(value) (object_type(AS_OBJ(value)))
 
 #define IS_BOOL(value) ((value).type == VAL_BOOL)
 #define IS_NIL(value) ((value).type == VAL_NIL)

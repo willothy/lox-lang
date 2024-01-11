@@ -183,7 +183,7 @@ void table_remove_white(Table *table) {
 	for (size_t i = 0; i < table->capacity; i++) {
 		Entry *entry = &table->entries[i];
 		if (entry->key != NULL
-		    && entry->key->object.marked != vm.mark_value) {
+		    && object_is_marked(&entry->key->object) != vm.mark_value) {
 			table_delete(table, entry->key);
 		}
 	}

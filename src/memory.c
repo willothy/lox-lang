@@ -42,10 +42,10 @@ static void free_object(Object *obj) {
 	printf("%p free type %s\n", (void *)obj, object_type_name(obj->type));
 #endif
 
-	switch (obj->type) {
+	switch (object_type(obj)) {
 	case OBJ_STRING: {
 		ObjectString *str = (ObjectString *)obj;
-		if (obj->owned) {
+		if (object_is_owned(obj)) {
 			FREE_ARRAY(char, str->chars, str->length + 1);
 		}
 		FREE(ObjectString, obj);
@@ -75,7 +75,7 @@ static void free_object(Object *obj) {
 }
 
 void mark_object(Object *obj) {
-	if (obj == NULL || obj->marked == vm.mark_value) {
+	if (obj == NULL || object_is_marked(obj) == vm.mark_value) {
 		return;
 	}
 
@@ -83,7 +83,11 @@ void mark_object(Object *obj) {
 	printf("%p mark ", (void *)obj);
 	value_println(OBJ_VAL(obj));
 #endif
-	obj->marked = vm.mark_value;
+	if (vm.mark_value) {
+		object_mark(obj);
+	} else {
+		object_unmark(obj);
+	}
 
 	if (vm.gray_capacity < vm.gray_count + 1) {
 		vm.gray_capacity = GROW_CAPACITY(vm.gray_capacity);
@@ -133,7 +137,7 @@ static void blacken_object(Object *obj) {
 	value_println(OBJ_VAL(obj));
 #endif
 
-	switch (obj->type) {
+	switch (object_type(obj)) {
 	case OBJ_FUNCTION: {
 		ObjectFunction *fn = (ObjectFunction *)obj;
 		mark_object((Object *)fn->name);
@@ -168,15 +172,15 @@ static void sweep() {
 	Object *prev = NULL;
 	Object *obj = vm.objects;
 	while (obj != NULL) {
-		if (obj->marked == vm.mark_value) {
+		if (object_is_marked(obj) == vm.mark_value) {
 			prev = obj;
-			obj = obj->next;
+			obj = object_next(obj);
 		} else {
 			Object *unreached = obj;
-			obj = obj->next;
+			obj = object_next(obj);
 
 			if (prev != NULL) {
-				prev->next = obj;
+				object_set_next(prev, obj);
 			} else {
 				vm.objects = obj;
 			}
@@ -216,7 +220,7 @@ void collect_garbage() {
 void free_objects() {
 	Object *obj = vm.objects;
 	while (obj) {
-		Object *next = obj->next;
+		Object *next = object_next(obj);
 		free_object(obj);
 		obj = next;
 	}
