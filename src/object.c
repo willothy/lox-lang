@@ -17,7 +17,7 @@ static Object* allocate_object(size_t size, ObjectType type, bool owned) {
 	Object *obj = (Object *)reallocate(NULL, 0, size);
 	obj->type = type;
 	obj->owned = owned;
-	obj->marked = false;
+	obj->marked = !vm.mark_value;
 	obj->next = vm.objects;
 	vm.objects = obj;
 	return obj;

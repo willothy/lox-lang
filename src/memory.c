@@ -75,7 +75,7 @@ static void free_object(Object *obj) {
 }
 
 void mark_object(Object *obj) {
-	if (obj == NULL || obj->marked) {
+	if (obj == NULL || obj->marked == vm.mark_value) {
 		return;
 	}
 
@@ -83,7 +83,7 @@ void mark_object(Object *obj) {
 	printf("%p mark ", (void *)obj);
 	value_println(OBJ_VAL(obj));
 #endif
-	obj->marked = true;
+	obj->marked = vm.mark_value;
 
 	if (vm.gray_capacity < vm.gray_count + 1) {
 		vm.gray_capacity = GROW_CAPACITY(vm.gray_capacity);
@@ -168,8 +168,7 @@ static void sweep() {
 	Object *prev = NULL;
 	Object *obj = vm.objects;
 	while (obj != NULL) {
-		if (obj->marked) {
-			obj->marked = false;
+		if (obj->marked == vm.mark_value) {
 			prev = obj;
 			obj = obj->next;
 		} else {
@@ -190,15 +189,20 @@ static void sweep() {
 void collect_garbage() {
 #ifdef DEBUG_LOG_GC
 	printf("-- gc begin\n");
-	size_t before = vm.bytes_allocated;
 #endif
+	size_t before = vm.bytes_allocated;
 
 	mark_roots();
 	trace_references();
 	table_remove_white(&vm.strings);
 	sweep();
 
-	vm.next_gc = vm.bytes_allocated * GC_HEAP_GROW_FACTOR;
+	// Don't increase the threshold if no memory was freed.
+	if (vm.bytes_allocated < before) {
+		vm.next_gc = vm.bytes_allocated * GC_HEAP_GROW_FACTOR;
+	}
+
+	vm.mark_value = !vm.mark_value;
 
 #ifdef DEBUG_LOG_GC
 	printf("-- gc end\n");

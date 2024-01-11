@@ -4,8 +4,6 @@
 #include <string.h>
 
 #include "chunk.h"
-#include "common.h"
-#include "debug.h"
 #include "memory.h"
 #include "vm.h"
 #include "compiler.h"
@@ -76,9 +74,9 @@ char *vm_init() {
 	table_init(&vm.strings);
 	table_init(&vm.globals);
 
-	// define_native("clock", clock_native, 0);
+	define_native("clock", clock_native, 0);
 	define_native("print", print_native, 1);
-	// define_native("type", type_native, 1);
+	define_native("type", type_native, 1);
 
 	return NULL;
 }
