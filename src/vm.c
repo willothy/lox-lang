@@ -323,7 +323,6 @@ static InterpretResult run() {
 			break;
 		}
 		case OP_ADD: {
-			BINARY_OP(NUMBER_VAL, +);
 			if (IS_STRING(vm_peek(0)) && IS_STRING(vm_peek(1))) {
 				concatonate();
 			} else if (IS_NUMBER(vm_peek(0)) && IS_NUMBER(vm_peek(1))) {
@@ -334,7 +333,6 @@ static InterpretResult run() {
 				runtime_error( "Operands must be two numbers or two strings.");
 				return INTERPRET_RUNTIME_ERROR;
 			}
-			break;
 			break;
 		}
 		case OP_SUBTRACT: {

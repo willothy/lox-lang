@@ -77,6 +77,7 @@ typedef struct ObjectUpvalue {
 
 typedef struct {
   Object obj;
+  // TODO: Only wrap functions that actually capture variables.
   ObjectFunction *function;
   ObjectUpvalue **upvalues;
   uint8_t upvalue_count;

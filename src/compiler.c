@@ -165,7 +165,7 @@ static void patch_jump(uint32_t offset) {
 		error("Too much code to jump over.");
 	}
 
-	chunk->code[offset]     = (jump >> 24) & 0xff;
+	chunk->code[offset + 0] = (jump >> 24) & 0xff;
 	chunk->code[offset + 1] = (jump >> 16) & 0xff;
 	chunk->code[offset + 2] = (jump >> 8) & 0xff;
 	chunk->code[offset + 3] = jump & 0xff;
@@ -369,7 +369,7 @@ static void define_variable(uint32_t global) {
 		emit_bytes(OP_DEFINE_GLOBAL_LONG, global & 0xff);
 		emit_bytes( (global >> 8) & 0xff, (global >> 16) & 0xff);
 	} else {
-		emit_bytes(OP_DEFINE_GLOBAL, global & 0xff);
+		emit_bytes(OP_DEFINE_GLOBAL, global);
 	}
 }
 
@@ -544,15 +544,17 @@ static void for_statement() {
 	uint32_t loop_start = current_chunk()->count;
 
 	uint32_t exit_jump = 0;
-	bool has_condition = !match(TOKEN_SEMICOLON);
-	if (has_condition) {
+	bool has_condition = false;
+	if (!match(TOKEN_SEMICOLON)) {
 		expression();
 		consume(TOKEN_SEMICOLON, "Expect ';' after loop condition.");
 
 		exit_jump  = emit_jump(OP_JUMP_IF_FALSE);
 		emit_byte(OP_POP);
+		has_condition = true;
 	}
 
+	uint32_t org_loop_start = loop_start;
 	if (!match(TOKEN_RIGHT_PAREN)) {
 		uint32_t body_jump = emit_jump(OP_JUMP);
 		uint32_t increment_start = current_chunk()->count;

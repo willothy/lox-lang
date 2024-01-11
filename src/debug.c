@@ -42,7 +42,7 @@ static size_t byte_long_instruction(const char* name, Chunk *chunk, int offset) 
 	return offset + 2;
 }
 
-static size_t jump_instruction (const char* name, int sign, Chunk *chunk, int offset) {
+static size_t jump_instruction(const char* name, int sign, Chunk *chunk, int offset) {
 	uint32_t jump = (uint32_t)(chunk->code[offset + 1] << 24);
 	jump |= (uint32_t)(chunk->code[offset + 2] << 16);
 	jump |= (uint32_t)(chunk->code[offset + 3] << 8);
