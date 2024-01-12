@@ -31,7 +31,7 @@ void value_print_indented(Value value, int indent) {
 	for (int i = 0; i < indent; i++) {
 		printf("  ");
 	}
-	value_print(value);
+
 	if (IS_BOOL(value)) {
 		printf(AS_BOOL(value) ? "true" : "false");
 	} else if (IS_NIL(value)) {
@@ -140,6 +140,10 @@ const ConstStr value_type_name(Value value) {
 			return value_type_name(AS_UPVALUE(value)->closed);
 		case OBJ_NATIVE:
 			return CONST_STR(native);
+		case OBJ_LIST:
+			return CONST_STR(list);
+		case OBJ_DICT:
+			return CONST_STR(dict);
 		}
 	}
 }

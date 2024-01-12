@@ -6,6 +6,7 @@
 
 // TODO: const / final vars
 
+// TODO: use high bit for long flag instead of having separate opcodes
 typedef enum {
   OP_CONSTANT,
   OP_CONSTANT_LONG,
@@ -22,6 +23,12 @@ typedef enum {
   OP_GET_UPVALUE,
   OP_SET_UPVALUE,
   OP_CLOSE_UPVALUE,
+  OP_LIST,
+  OP_LIST_LONG,
+  OP_DICT,
+  OP_DICT_LONG,
+  OP_GET_FIELD,
+  OP_SET_FIELD,
   OP_CALL,
   OP_JUMP,
   OP_JUMP_IF_FALSE,

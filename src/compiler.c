@@ -829,20 +829,103 @@ static void call(bool can_assign) {
 	emit_bytes(OP_CALL, arg_count);
 }
 
+static uint32_t array_list() {
+	uint32_t count = 0;
+	if (!check(TOKEN_RIGHT_BRACKET)) {
+		do {
+			expression();
+			count++;
+		} while (match(TOKEN_COMMA));
+	}
+	consume(TOKEN_RIGHT_BRACKET, "Expect ']' after list elements.");
+	return count;
+}
+
+static void list(bool can_assign) {
+	uint32_t arg_count = array_list();
+	if (arg_count <= UINT8_MAX) {
+		return emit_bytes(OP_LIST, arg_count);
+	}
+
+	if (arg_count > (UINT32_MAX >> 8)) {
+		error("Too many list elements in initializer.");
+	}
+	emit_bytes(OP_LIST_LONG, arg_count);
+	emit_bytes(arg_count >> 8, arg_count >> 16);
+}
+
+static uint32_t dict_entry_list() {
+	uint32_t count = 0;
+	if (!check(TOKEN_RIGHT_BRACE)) {
+		do {
+			consume(TOKEN_IDENTIFIER, "Expect dict key after '{'.");
+			uint32_t key = identifier_constant(&parser.previous);
+
+			ObjectString *str = copy_string((char*)parser.previous.start, parser.previous.length);
+			emit_constant(OBJ_VAL(str));
+
+			consume(TOKEN_COLON, "Expect ':' after dict key.");
+			expression();
+			count++;
+		} while (match(TOKEN_COMMA));
+	}
+	consume(TOKEN_RIGHT_BRACE, "Expect '}' after dict elements.");
+	return count;
+}
+
+static void dict(bool can_assign) {
+	uint32_t arg_count = dict_entry_list();
+	if (arg_count <= UINT8_MAX) {
+		return emit_bytes(OP_DICT, arg_count);
+	}
+
+	if (arg_count > (UINT32_MAX >> 8)) {
+		error("Too many list elements in initializer.");
+	}
+	emit_bytes(OP_DICT_LONG, arg_count);
+	emit_bytes(arg_count >> 8, arg_count >> 16);
+}
+
+static void dot(bool can_assign) {
+	consume(TOKEN_IDENTIFIER, "Expect property name after '.'.");
+	uint32_t name = identifier_constant(&parser.previous);
+
+	bool is_long = name > UINT8_MAX;
+	emit_bytes(is_long ? OP_CONSTANT_LONG : OP_CONSTANT, name & 0xff);
+	if (is_long) {
+		emit_byte((name >> 8) & 0xff);
+		emit_byte((name >> 16) & 0xff);
+	}
+
+	Opcode op;
+	if (can_assign && match(TOKEN_EQUAL)) {
+		expression();
+		emit_byte(OP_SET_FIELD);
+	} else {
+		emit_byte(OP_GET_FIELD);
+	}
+}
+
 ParseRule rules[] = {
 	[TOKEN_LEFT_PAREN]    = {grouping, call,   PREC_CALL},
 	[TOKEN_RIGHT_PAREN]   = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_LEFT_BRACE]    = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_LEFT_BRACE]    = {dict,     NULL,   PREC_NONE},
 	[TOKEN_RIGHT_BRACE]   = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_LEFT_BRACKET]  = {list,     NULL,   PREC_NONE},       //new
+	[TOKEN_RIGHT_BRACKET] = {NULL,     NULL,   PREC_NONE},       //new
 	[TOKEN_COMMA]         = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_DOT]           = {NULL,     NULL,   PREC_NONE},
-	// Classes and Instances table-dot
-	// [TOKEN_DOT]           = {NULL,     dot,    PREC_CALL},
+	[TOKEN_DOT]           = {NULL,     dot,    PREC_CALL},
+	[TOKEN_DOUBLE_DOT]    = {NULL,     NULL,   PREC_NONE},       //new
 	[TOKEN_MINUS]         = {unary,    binary, PREC_TERM},
+	[TOKEN_MINUS_EQUAL]   = {NULL,     NULL,   PREC_ASSIGNMENT}, //new
+	[TOKEN_ARROW]         = {NULL,     NULL,   PREC_NONE}, //new
 	[TOKEN_PLUS]          = {NULL,     binary, PREC_TERM},
+	[TOKEN_PLUS_EQUAL]    = {NULL,     NULL,   PREC_ASSIGNMENT}, //new
 	[TOKEN_SEMICOLON]     = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_SLASH]         = {NULL,     binary, PREC_FACTOR},
+	[TOKEN_SLASH_EQUAL]   = {NULL,     NULL,   PREC_ASSIGNMENT}, //new
 	[TOKEN_STAR]          = {NULL,     binary, PREC_FACTOR},
+	[TOKEN_STAR_EQUAL]    = {NULL,     NULL,   PREC_ASSIGNMENT}, //new
 	[TOKEN_BANG]          = {unary,    NULL,   PREC_NONE},
 	[TOKEN_BANG_EQUAL]    = {NULL,     binary, PREC_EQUALITY},
 	[TOKEN_EQUAL]         = {NULL,     NULL,   PREC_NONE},

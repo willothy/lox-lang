@@ -36,6 +36,8 @@ const char *object_type_name(ObjectType type) {
 		return "native";
 	case OBJ_LIST:
 		return "list";
+	case OBJ_DICT:
+		return "dict";
 	case OBJ_UPVALUE:
 		return "upvalue";
 	}
@@ -113,36 +115,83 @@ ObjectString *take_string(char *chars, size_t length) {
 }
 
 void object_print_indented(Value val, int depth) {
-	for (int i = 0; i < depth; i++) {
-		printf("  ");
-	}
+	#define INDENT() for (int i = 0; i < depth; i++) printf("  ")
+
 	switch(OBJ_TYPE(val)) {
 	case OBJ_STRING:
 		// Lox strings are not null-terminated and can be non-owned references to memory
 		// outside of the VM's heap. To print them, we need to use printf's precision
 		// specifier to print only the characters in the string.
+		INDENT();
 		printf("%.*s", (int)AS_STRING(val)->length, AS_CSTRING(val));
 		break;
 	case OBJ_CLOSURE:
+		INDENT();
 		function_print(AS_CLOSURE(val)->function);
 		break;
 	case OBJ_FUNCTION:
+		INDENT();
 		function_print(AS_FUNCTION(val));
 		break;
 	case OBJ_NATIVE:
+		INDENT();
 		printf("<native fn>");
 		break;
 	case OBJ_UPVALUE: // unreachable
+		INDENT();
 		printf("<upvalue>");
 		break;
 	case OBJ_LIST:
-		for (int i = 0; i < AS_LIST(val)->values.count; i++) {
-			value_print_indented(AS_LIST(val)->values.values[i], depth + 1);
-			if (i < AS_LIST(val)->values.count - 1) {
-				printf(", ");
+		INDENT();
+		ValueArray *list = &AS_LIST(val)->values;
+		size_t count = list->count;
+		if (count > 1) {
+			printf("[\n");
+		} else {
+			printf("[");
+		}
+		int elem_depth = count > 1 ? depth + 1 : depth;
+		for (int i = 0; i < count; i++) {
+			value_print_indented(list->values[i], elem_depth);
+			if (i < count - 1) {
+				printf(",\n");
 			}
 		}
+		if (count > 1) {
+			printf("\n]");
+		} else  {
+			printf("]");
+		}
 		break;
+	case OBJ_DICT: {
+		Table *list = &AS_DICT(val)->table;
+		size_t count = list->count;
+		if (count > 1) {
+			printf("{\n");
+		} else {
+			printf("}");
+		}
+		int elem_depth = count > 1 ? depth + 1 : depth;
+		size_t found = 0;
+		for (int i = 0; i < list->capacity; i++) {
+			Entry *entry = &list->entries[i];
+			if (entry->key == NULL || IS_NIL(entry->value)) {
+				continue;
+			}
+			value_print_indented(OBJ_VAL(entry->key), elem_depth);
+			printf(": ");
+			value_print_indented(entry->value, depth);
+			if (++found > 0) {
+				printf(",\n");
+				// if (--count) {
+				// } else {
+				// 	printf(",");
+				// }
+			}
+		}
+		printf("}");
+		break;
+	}
 	}
 }
 
@@ -200,3 +249,81 @@ ObjectUpvalue *upvalue_new(Value *slot) {
 	return upvalue;
 }
 
+
+Value list_get(ObjectList *list, size_t index) {
+	if (index >= list->values.count) {
+		return NIL_VAL;
+	}
+
+	return list->values.values[index];
+}
+
+size_t list_length(ObjectList *list) {
+	return list->values.count;
+}
+
+void list_set(ObjectList *list, size_t index, Value value) {
+	if (index >= list->values.count) {
+		// FIXME: either error or grow table and fill with nils
+		return;
+	}
+	list->values.values[index] = value;
+}
+
+Value list_remove(ObjectList *list, size_t index) {
+	if (index >= list->values.count) {
+		return NIL_VAL;
+	}
+	Value value = list->values.values[index];
+	for (size_t i = index; i < list->values.count - 1; i++) {
+		list->values.values[i] = list->values.values[i + 1];
+	}
+	list->values.count--;
+	return value;
+}
+
+void list_push(ObjectList *list, Value value) {
+	value_array_write(&list->values, value);
+}
+
+Value list_pop(ObjectList *list) {
+	if (list->values.count == 0) {
+		return NIL_VAL;
+	}
+	Value value = list->values.values[list->values.count - 1];
+	list->values.values[list->values.count - 1] = NIL_VAL; // is this necessary?
+	list->values.count--;
+	return value;
+}
+
+ObjectList *list_new() {
+	ObjectList *list = ALLOCATE_OBJ(ObjectList, OBJ_LIST, true);
+	value_array_init(&list->values);
+	return list;
+}
+
+ObjectDict *dict_new() {
+	ObjectDict *dict = ALLOCATE_OBJ(ObjectDict, OBJ_DICT, true);
+	table_init(&dict->table);
+	return dict;
+}
+
+void dict_set(ObjectDict *dict, ObjectString *key, Value value) {
+	table_set(&dict->table, key, value);
+}
+
+Value dict_get(ObjectDict *dict, ObjectString *key) {
+	Value value = NIL_VAL;
+	table_get(&dict->table, key, &value);
+	return value;
+}
+
+Value dict_remove(ObjectDict *dict, ObjectString *key) {
+	Value value = NIL_VAL;
+	table_get_and_delete(&dict->table, key, &value);
+	return value;
+}
+
+void dict_clear(ObjectDict *dict) {
+	dict->table.count = 0;
+}

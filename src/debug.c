@@ -80,6 +80,10 @@ size_t disassemble_instruction(Chunk *chunk, size_t offset) {
 		return simple_instruction("OP_RETURN", offset);
 	case OP_CALL:
 		return byte_instruction("OP_CALL", chunk, offset);
+	case OP_LIST:
+		return byte_instruction("OP_LIST", chunk, offset);
+	case OP_LIST_LONG:
+		return byte_long_instruction("OP_LIST_LONG", chunk, offset);
 	// case OP_PRINT:
 	// 	return simple_instruction("OP_PRINT", offset);
 	case OP_CLOSURE: {
@@ -146,6 +150,10 @@ size_t disassemble_instruction(Chunk *chunk, size_t offset) {
 		return byte_instruction("OP_SET_LOCAL", chunk, offset);
 	case OP_SET_LOCAL_LONG:
 		return byte_long_instruction("OP_SET_LOCAL_LONG", chunk, offset);
+	case OP_GET_FIELD:
+		return constant_instruction("OP_GET_FIELD", chunk, offset);
+	case OP_SET_FIELD:
+		return constant_instruction("OP_SET_FIELD", chunk, offset);
 	case OP_JUMP:
 		return jump_instruction("OP_JUMP", 1, chunk, offset);
 	case OP_JUMP_IF_FALSE:

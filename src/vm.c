@@ -279,7 +279,9 @@ static bool call_value(Value callee, uint8_t argc) {
 			vm_push(result);
 			return true;
 		}
+		case OBJ_LIST:
 		case OBJ_UPVALUE:
+		case OBJ_DICT:
 		case OBJ_STRING:
 			break;
 		}
@@ -320,6 +322,60 @@ static void close_upvalues(Value *last) {
 		upvalue->location = &upvalue->closed;
 		vm.open_upvalues = upvalue->next;
 	}
+}
+
+static bool set_field(Value container, Value key, Value value) {
+	if (IS_LIST(container)) {
+		if (!IS_NUMBER(key)) {
+			runtime_error("List indices must be integers.");
+			return false;
+		}
+		// ensure number is an integer
+		if (AS_NUMBER(key) != (size_t)AS_NUMBER(key)) {
+			runtime_error("List indices must be integral.");
+			return false;
+		}
+
+		list_set(AS_LIST(container), AS_NUMBER(key), value);
+		return true;
+	} else if (IS_DICT(container)) {
+		if (!IS_STRING(key)) {
+			runtime_error("Dictionary keys must be strings.");
+			return false;
+		}
+		dict_set(AS_DICT(container), AS_STRING(key), value);
+		return true;
+	}
+	ConstStr type = value_type_name(container);
+	runtime_error("Attempted to mutably index a %.*s value.", type.length, type.chars);
+	return false;
+}
+
+static bool get_field(Value container, Value key) {
+	if (IS_LIST(container)) {
+		if (!IS_NUMBER(key)) {
+			runtime_error("List indices must be integers.");
+			return false;
+		}
+		// ensure number is an integer
+		if (AS_NUMBER(key) != (size_t)AS_NUMBER(key)) {
+			runtime_error("List indices must be integral.");
+			return false;
+		}
+
+		vm_push(list_get(AS_LIST(container), AS_NUMBER(key)));
+		return true;
+	} else if (IS_DICT(container)) {
+		if (!IS_STRING(key)) {
+			runtime_error("Dictionary keys must be strings.");
+			return false;
+		}
+
+		dict_get(AS_DICT(container), AS_STRING(key));
+	}
+	ConstStr type = value_type_name(container);
+	runtime_error("Attempted to index a %.*s value.", type.length, type.chars);
+	return false;
 }
 
 static InterpretResult run() {
@@ -445,6 +501,71 @@ static InterpretResult run() {
 				return INTERPRET_RUNTIME_ERROR;
 			}
 			frame = &vm.frames[vm.frame_count - 1];
+			break;
+		}
+		case OP_SET_FIELD: {
+			uint8_t index = READ_BYTE();
+			Value value = vm_pop();
+			Value key = vm_pop();
+			Value container = vm_pop();
+
+			if (!set_field(container, key, value)) {
+				return INTERPRET_RUNTIME_ERROR;
+			}
+			break;
+		}
+		case OP_GET_FIELD: {
+			uint8_t index = READ_BYTE();
+			Value key = vm_pop();
+			Value container = vm_pop();
+
+			if (!get_field(container, key)) {
+				return INTERPRET_RUNTIME_ERROR;
+			}
+			break;
+		}
+		case OP_LIST: {
+			ObjectList *list = list_new();
+			uint8_t count = READ_BYTE();
+			while (count--) {
+				list_push(list, vm_pop());
+			}
+			vm_push(OBJ_VAL(list));
+			break;
+		}
+		case OP_LIST_LONG: {
+			ObjectList *list = list_new();
+			uint32_t count = READ_BYTE();
+			count |= READ_BYTE() << 8;
+			count |= READ_BYTE() << 16;
+			while (count--) {
+				list_push(list, vm_pop());
+			}
+			vm_push(OBJ_VAL(list));
+			break;
+		}
+		case OP_DICT: {
+			ObjectDict *dict = dict_new();
+			uint8_t count = READ_BYTE();
+			while (count--) {
+				Value value = vm_pop();
+				Value key = vm_pop(); // because of the compiler, this should *always* be a string
+				dict_set(dict, AS_STRING(key), value);
+			}
+			vm_push(OBJ_VAL(dict));
+			break;
+		}
+		case OP_DICT_LONG: {
+			ObjectDict *dict = dict_new();
+			uint32_t count = READ_BYTE();
+			count |= READ_BYTE() << 8;
+			count |= READ_BYTE() << 16;
+			while (count--) {
+				Value value = vm_pop();
+				Value key = vm_pop(); // same as above
+				dict_set(dict, AS_STRING(key), value);
+			}
+			vm_push(OBJ_VAL(dict));
 			break;
 		}
 		case OP_CLOSURE: {

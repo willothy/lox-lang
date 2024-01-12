@@ -11,6 +11,7 @@ typedef enum {
   OBJ_UPVALUE,
   OBJ_NATIVE,
   OBJ_LIST,
+  OBJ_DICT,
 } ObjectType;
 
 typedef enum ValueType {

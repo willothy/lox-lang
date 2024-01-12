@@ -2,6 +2,12 @@ var test = fun(x) {
   print(x);
 };
 
-for (var a = 0; a < 10; a = a + 1) {
-  test(test);
-}
+var x = {
+  test: 1
+};
+
+print(x);
+
+x.test2 = 2;
+
+print(x);

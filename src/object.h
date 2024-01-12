@@ -4,6 +4,7 @@
 #include "chunk.h"
 #include "common.h"
 #include "memory.h"
+#include "table.h"
 #include "value.h"
 
 typedef struct Object {
@@ -110,6 +111,7 @@ static inline bool is_obj_type(Value value, ObjectType type) {
 #define IS_CLOSURE(value) is_obj_type(value, OBJ_CLOSURE)
 #define IS_UPVALUE(value) is_obj_type(value, OBJ_UPVALUE)
 #define IS_LIST(value) is_obj_type(value, OBJ_LIST)
+#define IS_DICT(value) is_obj_type(value, OBJ_DICT)
 
 #define AS_STRING(value) ((ObjectString *)AS_OBJ(value))
 #define AS_CSTRING(value) (((ObjectString *)AS_OBJ(value))->chars)
@@ -119,6 +121,7 @@ static inline bool is_obj_type(Value value, ObjectType type) {
 #define AS_CLOSURE(value) ((ObjectClosure *)AS_OBJ(value))
 #define AS_UPVALUE(value) ((ObjectUpvalue *)AS_OBJ(value))
 #define AS_LIST(value) ((ObjectList *)AS_OBJ(value))
+#define AS_DICT(value) ((ObjectDict *)AS_OBJ(value))
 
 typedef struct {
   Object object;
@@ -157,20 +160,32 @@ typedef struct {
   ValueArray values;
 } ObjectList;
 
+typedef struct {
+  Object obj;
+  Table table;
+} ObjectDict;
+
 ObjectString *copy_string(const char *start, size_t length);
 ObjectString *take_string(char *chars, size_t length);
 ObjectString *ref_string(char *chars, size_t length);
 ObjectString *const_string(const char *chars, size_t length);
 
+ObjectList *list_new();
+void list_set(ObjectList *list, size_t index, Value value);
+Value list_remove(ObjectList *list, size_t index);
+Value list_pop(ObjectList *list);
+void list_push(ObjectList *list, Value value);
 Value list_get(ObjectList *list, size_t index);
 size_t list_length(ObjectList *list);
 
-void list_set(ObjectList *list, size_t index, Value value);
-Value list_remove(ObjectList *list, size_t index);
-void list_push(ObjectList *list, Value value);
-void list_pop(ObjectList *list);
+ObjectDict *dict_new();
+void dict_set(ObjectDict *dict, ObjectString *key, Value value);
+void dict_clear(ObjectDict *dict);
+Value dict_remove(ObjectDict *dict, ObjectString *key);
+Value dict_get(ObjectDict *dict, ObjectString *key);
 
-ObjectList *list_new();
+// void dict_keys(ObjectDict *dict, ObjectList *list);
+// void dict_values(ObjectDict *dict, ObjectList *list);
 
 ObjectUpvalue *upvalue_new(Value *slot);
 

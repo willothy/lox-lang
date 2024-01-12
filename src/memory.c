@@ -2,6 +2,7 @@
 
 #include "memory.h"
 #include "compiler.h"
+#include "value.h"
 #include "vm.h"
 
 #ifdef DEBUG_LOG_GC
@@ -73,8 +74,14 @@ static void free_object(Object *obj) {
 	}
 	case OBJ_LIST: {
 		ObjectList *list = (ObjectList *)obj;
-		FREE_ARRAY(Value, &list->values.values, list->values.capacity);
+		value_array_free(&list->values);
 		FREE(ObjectList, obj);
+		break;
+	}
+	case OBJ_DICT: {
+		ObjectDict *dict = (ObjectDict *)obj;
+		table_free(&dict->table);
+		FREE(ObjectDict, obj);
 		break;
 	}
 	}
@@ -160,6 +167,12 @@ static void blacken_object(Object *obj) {
 	}
 	case OBJ_UPVALUE:
 		mark_value(((ObjectUpvalue *)obj)->closed);
+		break;
+	case OBJ_LIST:
+		mark_array(&((ObjectList *)obj)->values);
+		break;
+	case OBJ_DICT:
+		table_mark(&((ObjectDict *)obj)->table);
 		break;
 	case OBJ_STRING:
 	case OBJ_NATIVE:

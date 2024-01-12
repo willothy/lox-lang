@@ -83,7 +83,6 @@ static void skip_whitespace() {
 	}
 }
 
-
 static Token error_token(const char* message) {
 	Token token;
 	token.type = TOKEN_ERROR;
@@ -188,13 +187,43 @@ Token scanner_next_token() {
 	case ')': return token(TOKEN_RIGHT_PAREN);
 	case '{': return token(TOKEN_LEFT_BRACE);
 	case '}': return token(TOKEN_RIGHT_BRACE);
+	case '[': return token(TOKEN_LEFT_BRACKET);
+	case ']': return token(TOKEN_RIGHT_BRACKET);
 	case ';': return token(TOKEN_SEMICOLON);
 	case ',': return token(TOKEN_COMMA);
-	case '.': return token(TOKEN_DOT);
-	case '-': return token(TOKEN_MINUS);
-	case '+': return token(TOKEN_PLUS);
-	case '/': return token(TOKEN_SLASH);
-	case '*': return token(TOKEN_STAR);
+	case ':': return token(TOKEN_COLON);
+	case '.':
+		if (match('.')) {
+			return token(TOKEN_DOUBLE_DOT);
+		}
+		return token(TOKEN_DOT);
+	case '-': {
+		if (match('>')) {
+			return token(TOKEN_ARROW);
+		} else if (match('=')) {
+			return token(TOKEN_MINUS_EQUAL);
+		}
+
+		return token(TOKEN_MINUS);
+	}
+	case '+': {
+		if (match('=')) {
+			return token(TOKEN_PLUS_EQUAL);
+		}
+		return token(TOKEN_PLUS);
+	}
+	case '/': {
+		if (match('=')) {
+			return token(TOKEN_SLASH_EQUAL);
+		}
+		return token(TOKEN_SLASH);
+	}
+	case '*': {
+		if (match('=')) {
+			return token(TOKEN_STAR_EQUAL);
+		}
+		return token(TOKEN_STAR);
+	}
 
 	// complex tokens
 	case '!': {

@@ -125,6 +125,20 @@ bool table_delete(Table *table, ObjectString *key) {
 	return true;
 }
 
+bool table_get_and_delete(Table *table, ObjectString *key, Value *value) {
+	if (table->count == 0) {
+		return false;
+	}
+	Entry *entry = table_find_entry(table->entries, table->capacity, key);
+	if (entry->key == NULL) {
+		return false;
+	}
+	*value = entry->value;
+	entry->key = NULL;
+	entry->value = BOOL_VAL(true);
+	return true;
+}
+
 ObjectString* table_find_string(Table *table, const char *chars, size_t length, uint32_t hash) {
 	if (table->count == 0) {
 		return NULL;
