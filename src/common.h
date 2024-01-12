@@ -20,6 +20,9 @@
 // #define DEBUG_STRESS_GC
 // #define DEBUG_LOG_GC
 
+#define DYNAMIC_TYPE_CHECKING
+#define NATIVE_ARITY_CHECKING
+
 #define ALLOW_SHADOWING
 #define NAN_BOXING
 

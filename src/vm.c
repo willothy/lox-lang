@@ -45,10 +45,12 @@ static Value is_type_native(uint8_t argc, Value *args) {
 	const Value value = args[0];
 	const Value expected = args[1];
 
+#ifdef DYNAMIC_TYPE_CHECKING
 	if (!IS_STRING(expected)) {
 		// TODO: this should be an error
 		return BOOL_VAL(false);
 	}
+#endif
 
 	const ObjectString *string = AS_STRING(expected);
 	// "nil" is the shortest type name
@@ -208,7 +210,9 @@ static void runtime_error_value(Value value, const char *format, ...) {
 	va_start(args, format);
 	vfprintf(stderr, format, args);
 	va_end(args);
-	value_println(value);
+	const ConstStr type = value_type_name(value);
+	printf("%.*s\n", (int)type.length, type.chars);
+	// value_println(value);
 
 	// Print the stack trace
 	for (size_t i = 0; i < vm.frame_count; i++) {
@@ -246,10 +250,12 @@ static void concatonate() {
 }
 
 static bool call(ObjectClosure *closure, uint8_t argc) {
+#ifdef DYNAMIC_TYPE_CHECKING
 	if (argc != closure->function->arity) {
 		runtime_error("Expected %d arguments but got %d.", closure->function->arity, argc);
 		return false;
 	}
+#endif
 
 	if (vm.frame_count == FRAMES_MAX) {
 		runtime_error("Stack overflow.");
@@ -268,15 +274,18 @@ static bool call_value(Value callee, uint8_t argc) {
 		switch (OBJ_TYPE(callee)) {
 		case OBJ_FUNCTION:
 			// return call(AS_FUNCTION(callee), argc);
+			// should be unreachable (for now)
 			break;
 		case OBJ_CLOSURE:
 			return call(AS_CLOSURE(callee), argc);
 		case OBJ_NATIVE: {
 			ObjectNative *native = AS_NATIVE(callee);
+#ifdef NATIVE_ARITY_CHECKING
 			if (argc != native->arity) {
 				runtime_error("Expected %d arguments but got %d.", native->arity, argc);
 				return false;
 			}
+#endif
 
 			Value result = native->function(argc, vm.stack_top - argc);
 			vm.stack_top -= argc + 1;
@@ -330,6 +339,7 @@ static void close_upvalues(Value *last) {
 
 static bool set_field(Value container, Value key, Value value) {
 	if (IS_LIST(container)) {
+#ifdef DYNAMIC_TYPE_CHECKING
 		if (!IS_NUMBER(key)) {
 			runtime_error("List indices must be integers.");
 			return false;
@@ -339,14 +349,17 @@ static bool set_field(Value container, Value key, Value value) {
 			runtime_error("List indices must be integral.");
 			return false;
 		}
+#endif
 
 		list_set(AS_LIST(container), AS_NUMBER(key), value);
 		return true;
 	} else if (IS_DICT(container)) {
+#ifdef DYNAMIC_TYPE_CHECKING
 		if (!IS_STRING(key)) {
 			runtime_error("Dictionary keys must be strings.");
 			return false;
 		}
+#endif
 		dict_set(AS_DICT(container), AS_STRING(key), value);
 		return true;
 	}
@@ -357,6 +370,7 @@ static bool set_field(Value container, Value key, Value value) {
 
 static bool get_field(Value container, Value key) {
 	if (IS_LIST(container)) {
+#ifdef DYNAMIC_TYPE_CHECKING
 		if (!IS_NUMBER(key)) {
 			runtime_error("List indices must be integers.");
 			return false;
@@ -366,14 +380,17 @@ static bool get_field(Value container, Value key) {
 			runtime_error("List indices must be integral.");
 			return false;
 		}
+#endif
 
 		vm_push(list_get(AS_LIST(container), AS_NUMBER(key)));
 		return true;
 	} else if (IS_DICT(container)) {
+#ifdef DYNAMIC_TYPE_CHECKING
 		if (!IS_STRING(key)) {
 			runtime_error("Dictionary keys must be strings.");
 			return false;
 		}
+#endif
 
 		vm_push(dict_get(AS_DICT(container), AS_STRING(key)));
 		return true;
@@ -394,6 +411,8 @@ static InterpretResult run() {
   #define READ_CONSTANT() (frame->closure->function->chunk.constants.values[READ_BYTE()])
 	#define READ_CONSTANT_LONG()    \
 		(frame->closure->function->chunk.constants.values[READ_BYTE() | (READ_BYTE() << 8) | (READ_BYTE() << 16)])
+
+	#ifdef DYNAMIC_TYPE_CHECKING
 	#define BINARY_OP(value_type, op) \
 		if (!IS_NUMBER(vm_peek(0)) || !IS_NUMBER(vm_peek(1))) { \
 			runtime_error("Operands must be numbers."); \
@@ -404,6 +423,14 @@ static InterpretResult run() {
 			double a = AS_NUMBER(vm_pop()); \
 			vm_push(value_type(a op b)); \
 		} while (false)
+	#else
+	#define BINARY_OP(value_type, op) \
+		do { \
+			double b = AS_NUMBER(vm_pop()); \
+			double a = AS_NUMBER(vm_pop()); \
+			vm_push(value_type(a op b)); \
+		} while (false)
+	#endif
 
 	#ifdef DEBUG_TRACE_EXECUTION
 	printf("== trace ==\n");
@@ -464,9 +491,20 @@ static InterpretResult run() {
 			break;
 		}
 		case OP_ADD: {
-			if (IS_STRING(vm_peek(0)) && IS_STRING(vm_peek(1))) {
+			if (
+				IS_STRING(vm_peek(0))
+				// We only need to check the first operand if safety checks are disabled
+#ifdef DYNAMIC_TYPE_CHECKING
+				&& IS_STRING(vm_peek(1))
+#endif
+				) {
 				concatonate();
-			} else if (IS_NUMBER(vm_peek(0)) && IS_NUMBER(vm_peek(1))) {
+			} else if (
+				IS_NUMBER(vm_peek(0))
+#ifdef DYNAMIC_TYPE_CHECKING
+				&& IS_NUMBER(vm_peek(1))
+#endif
+				) {
 				double b = AS_NUMBER(vm_pop());
 				double a = AS_NUMBER(vm_pop());
 				vm_push(NUMBER_VAL(a + b));
@@ -493,15 +531,18 @@ static InterpretResult run() {
 		// 	break;
 		// }
 		case OP_NEGATE: {
+#ifdef DYNAMIC_TYPE_CHECKING
 			if (!IS_NUMBER(vm_peek(0))) {
 				runtime_error("Operand must be a number");
 				return INTERPRET_RUNTIME_ERROR;
 			}
+#endif
 			vm_push(NUMBER_VAL(-AS_NUMBER(vm_pop())));
 			break;
 		}
 		case OP_CALL: {
 			size_t argc = READ_BYTE();
+			// TODO: better error handling
 			if (!call_value(vm_peek(argc), argc)) {
 				return INTERPRET_RUNTIME_ERROR;
 			}
