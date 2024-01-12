@@ -166,28 +166,17 @@ void object_print_indented(Value val, int depth) {
 	case OBJ_DICT: {
 		Table *list = &AS_DICT(val)->table;
 		size_t count = list->count;
-		if (count > 1) {
-			printf("{\n");
-		} else {
-			printf("}");
-		}
-		int elem_depth = count > 1 ? depth + 1 : depth;
+		printf("{\n");
 		size_t found = 0;
 		for (int i = 0; i < list->capacity; i++) {
 			Entry *entry = &list->entries[i];
 			if (entry->key == NULL || IS_NIL(entry->value)) {
 				continue;
 			}
-			value_print_indented(OBJ_VAL(entry->key), elem_depth);
+			value_print_indented(OBJ_VAL(entry->key), depth + 1);
 			printf(": ");
 			value_print_indented(entry->value, depth);
-			if (++found > 0) {
-				printf(",\n");
-				// if (--count) {
-				// } else {
-				// 	printf(",");
-				// }
-			}
+			printf(",\n");
 		}
 		printf("}");
 		break;

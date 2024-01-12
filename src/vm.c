@@ -9,6 +9,10 @@
 #include "object.h"
 #include "value.h"
 
+#ifdef DEBUG_TRACE_EXECUTION
+#include "debug.h"
+#endif
+
 VM vm;
 
 static Value clock_native(uint8_t argc, Value *args) {
@@ -371,7 +375,8 @@ static bool get_field(Value container, Value key) {
 			return false;
 		}
 
-		dict_get(AS_DICT(container), AS_STRING(key));
+		vm_push(dict_get(AS_DICT(container), AS_STRING(key)));
+		return true;
 	}
 	ConstStr type = value_type_name(container);
 	runtime_error("Attempted to index a %.*s value.", type.length, type.chars);
@@ -504,7 +509,6 @@ static InterpretResult run() {
 			break;
 		}
 		case OP_SET_FIELD: {
-			uint8_t index = READ_BYTE();
 			Value value = vm_pop();
 			Value key = vm_pop();
 			Value container = vm_pop();
@@ -515,7 +519,6 @@ static InterpretResult run() {
 			break;
 		}
 		case OP_GET_FIELD: {
-			uint8_t index = READ_BYTE();
 			Value key = vm_pop();
 			Value container = vm_pop();
 

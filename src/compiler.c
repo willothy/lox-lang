@@ -837,6 +837,7 @@ static uint32_t array_list() {
 			count++;
 		} while (match(TOKEN_COMMA));
 	}
+	match(TOKEN_COMMA); // allow trailing comma
 	consume(TOKEN_RIGHT_BRACKET, "Expect ']' after list elements.");
 	return count;
 }
@@ -869,6 +870,7 @@ static uint32_t dict_entry_list() {
 			count++;
 		} while (match(TOKEN_COMMA));
 	}
+	match(TOKEN_COMMA); // allow trailing comma
 	consume(TOKEN_RIGHT_BRACE, "Expect '}' after dict elements.");
 	return count;
 }
