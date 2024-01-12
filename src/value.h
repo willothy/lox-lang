@@ -10,6 +10,7 @@ typedef enum {
   OBJ_CLOSURE,
   OBJ_UPVALUE,
   OBJ_NATIVE,
+  OBJ_LIST,
 } ObjectType;
 
 typedef enum ValueType {
@@ -115,6 +116,7 @@ void value_array_free(ValueArray *array);
 
 void value_print(Value value);
 void value_println(Value value);
+void value_print_indented(Value value, int indent);
 ObjectString *value_to_string(Value value);
 
 bool value_equal(Value a, Value b);

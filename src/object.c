@@ -34,6 +34,8 @@ const char *object_type_name(ObjectType type) {
 		return "function";
 	case OBJ_NATIVE:
 		return "native";
+	case OBJ_LIST:
+		return "list";
 	case OBJ_UPVALUE:
 		return "upvalue";
 	}
@@ -110,7 +112,10 @@ ObjectString *take_string(char *chars, size_t length) {
 	return alloc_string(chars, length, hash, true);
 }
 
-void object_print(Value val) {
+void object_print_indented(Value val, int depth) {
+	for (int i = 0; i < depth; i++) {
+		printf("  ");
+	}
 	switch(OBJ_TYPE(val)) {
 	case OBJ_STRING:
 		// Lox strings are not null-terminated and can be non-owned references to memory
@@ -130,7 +135,19 @@ void object_print(Value val) {
 	case OBJ_UPVALUE: // unreachable
 		printf("<upvalue>");
 		break;
+	case OBJ_LIST:
+		for (int i = 0; i < AS_LIST(val)->values.count; i++) {
+			value_print_indented(AS_LIST(val)->values.values[i], depth + 1);
+			if (i < AS_LIST(val)->values.count - 1) {
+				printf(", ");
+			}
+		}
+		break;
 	}
+}
+
+void object_print(Value val) {
+	object_print_indented(val, 0);
 }
 
 ObjectFunction *function_new() {
@@ -147,7 +164,11 @@ void function_print(ObjectFunction *function) {
 		printf("<script>");
 		return;
 	}
-	printf("<fn %s>", function->name->chars);
+	if (function->name->length == 0){
+		printf("<fn>");
+		return;
+	}
+	printf("<fn %.*s>", (int)function->name->length, function->name->chars);
 }
 
 ObjectNative *native_new(NativeFn function, uint8_t arity) {

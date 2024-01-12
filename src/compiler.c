@@ -54,7 +54,8 @@ typedef struct {
 } Upvalue;
 
 typedef enum {
-	FN_TYPE_FUNCTION,
+	FN_TYPE_NAMED,
+	FN_TYPE_ANONYMOUS,
 	FN_TYPE_SCRIPT,
 } FunctionType;
 
@@ -188,8 +189,14 @@ static void compiler_init(Compiler *compiler, FunctionType type) {
 	compiler->function = function_new();
 	current = compiler;
 
-	if (type  != FN_TYPE_SCRIPT) {
+	switch(type) {
+	case FN_TYPE_NAMED:
 		current->function->name = copy_string((char*)parser.previous.start, parser.previous.length);
+		break;
+	case FN_TYPE_ANONYMOUS:
+		current->function->name = const_string("", 0);
+	case FN_TYPE_SCRIPT:
+		break;
 	}
 
 	Local *local = &current->locals[current->local_count++];
@@ -262,7 +269,7 @@ static void function(FunctionType type);
 
 static void expression() {
 	if (match(TOKEN_FUN)) {
-		function(FN_TYPE_FUNCTION);
+		function(FN_TYPE_ANONYMOUS);
 	} else {
 		parse_precedence(PREC_ASSIGNMENT);
 	}
@@ -488,7 +495,7 @@ static void function(FunctionType type) {
 static void fun_declaration() {
 	uint32_t global = parse_variable("Expect function name.");
 	mark_initialized();
-	function(FN_TYPE_FUNCTION);
+	function(FN_TYPE_NAMED);
 	define_variable(global);
 }
 

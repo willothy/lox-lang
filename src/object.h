@@ -109,6 +109,7 @@ static inline bool is_obj_type(Value value, ObjectType type) {
 #define IS_NATIVE(value) is_obj_type(value, OBJ_NATIVE)
 #define IS_CLOSURE(value) is_obj_type(value, OBJ_CLOSURE)
 #define IS_UPVALUE(value) is_obj_type(value, OBJ_UPVALUE)
+#define IS_LIST(value) is_obj_type(value, OBJ_LIST)
 
 #define AS_STRING(value) ((ObjectString *)AS_OBJ(value))
 #define AS_CSTRING(value) (((ObjectString *)AS_OBJ(value))->chars)
@@ -117,6 +118,7 @@ static inline bool is_obj_type(Value value, ObjectType type) {
 #define AS_NATIVE_FN(value) (((ObjectNative *)AS_OBJ(value))->function)
 #define AS_CLOSURE(value) ((ObjectClosure *)AS_OBJ(value))
 #define AS_UPVALUE(value) ((ObjectUpvalue *)AS_OBJ(value))
+#define AS_LIST(value) ((ObjectList *)AS_OBJ(value))
 
 typedef struct {
   Object object;
@@ -150,10 +152,25 @@ typedef struct {
   uint8_t arity;
 } ObjectNative;
 
+typedef struct {
+  Object obj;
+  ValueArray values;
+} ObjectList;
+
 ObjectString *copy_string(const char *start, size_t length);
 ObjectString *take_string(char *chars, size_t length);
 ObjectString *ref_string(char *chars, size_t length);
 ObjectString *const_string(const char *chars, size_t length);
+
+Value list_get(ObjectList *list, size_t index);
+size_t list_length(ObjectList *list);
+
+void list_set(ObjectList *list, size_t index, Value value);
+Value list_remove(ObjectList *list, size_t index);
+void list_push(ObjectList *list, Value value);
+void list_pop(ObjectList *list);
+
+ObjectList *list_new();
 
 ObjectUpvalue *upvalue_new(Value *slot);
 
@@ -165,5 +182,6 @@ ObjectNative *native_new(NativeFn function, uint8_t arity);
 
 const char *object_type_name(ObjectType type);
 void object_print(Value obj);
+void object_print_indented(Value obj, int indent);
 
 #endif

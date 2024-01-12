@@ -27,6 +27,22 @@ void value_array_free(ValueArray *array) {
 	value_array_init(array);
 }
 
+void value_print_indented(Value value, int indent) {
+	for (int i = 0; i < indent; i++) {
+		printf("  ");
+	}
+	value_print(value);
+	if (IS_BOOL(value)) {
+		printf(AS_BOOL(value) ? "true" : "false");
+	} else if (IS_NIL(value)) {
+		printf("nil");
+	} else if (IS_NUMBER(value)) {
+		printf("%g", AS_NUMBER(value));
+	} else if (IS_OBJ(value)) {
+		object_print_indented(value, indent);
+	}
+}
+
 void value_print(Value value) {
 #ifdef NAN_BOXING
 	if (IS_BOOL(value)) {

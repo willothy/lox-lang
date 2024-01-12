@@ -71,6 +71,12 @@ static void free_object(Object *obj) {
 		FREE(ObjectNative, obj);
 		break;
 	}
+	case OBJ_LIST: {
+		ObjectList *list = (ObjectList *)obj;
+		FREE_ARRAY(Value, &list->values.values, list->values.capacity);
+		FREE(ObjectList, obj);
+		break;
+	}
 	}
 }
 
