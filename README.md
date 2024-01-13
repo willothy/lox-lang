@@ -13,6 +13,9 @@ Future goals:
 
 - Everything is an expression
 - Native objects
+- Lua-like tables
+- Metaprogramming / metatables
+- Coroutines and channels
 - Methods incl. methods for primitive types
 - Module system
 - Gradual typing (compile time checks only)
