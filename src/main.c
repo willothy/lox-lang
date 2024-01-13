@@ -31,7 +31,9 @@ static void repl() {
 			break;
 		}
 
-		vm_interpret(try_compile(line));
+		ObjectFunction *f = compile(line);
+
+		if (f) vm_interpret(f);
 	}
 }
 

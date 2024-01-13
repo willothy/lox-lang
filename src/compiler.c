@@ -173,7 +173,7 @@ static size_t skip_newlines() {
 
 static bool check(TokenType type) {
 	size_t skipped = skip_newlines();
-	if (skipped != 0 && type == TOKEN_NEWLINE) {
+	if (skipped != 0 && (type == TOKEN_NEWLINE || type == TOKEN_SEMICOLON)) {
 		backtrack(skipped);
 		return true;
 	}
@@ -260,6 +260,7 @@ static void parser_init() {
 	parser.tokens = NULL;
 	parser.count = 0;
 	parser.capacity = 0;
+	parser.current = 0;
 	parser.had_error = false;
 	parser.panic_mode = false;
 }
@@ -351,8 +352,8 @@ static void expression() {
 
 static void expression_statement() {
 	expression();
-	// consume(TOKEN_SEMICOLON, "Expect ';' after expression.");
-	consume(TOKEN_NEWLINE, "Expect '\\n' after expression.");
+	consume(TOKEN_SEMICOLON, "Expect ';' after expression.");
+	// consume(TOKEN_NEWLINE, "Expect '\\n' after expression.");
 	emit_byte(OP_POP);
 }
 
@@ -386,7 +387,8 @@ static void synchronize() {
 	parser.panic_mode = false;
 
 	while (current_token().type != TOKEN_EOF) {
-		if (prev_token().type == TOKEN_NEWLINE) return;
+		if (prev_token().type == TOKEN_SEMICOLON) return;
+		// if (prev_token().type == TOKEN_NEWLINE) return;
 		switch (current_token().type) {
 		case TOKEN_CLASS:
 		case TOKEN_FUN:
@@ -513,7 +515,8 @@ static void var_declaration() {
 	} else {
 		emit_byte(OP_NIL);
 	}
-	consume(TOKEN_NEWLINE, "Expect '\\n' after variable declaration.");
+	consume(TOKEN_SEMICOLON, "Expect ';' after variable declaration.");
+	// consume(TOKEN_NEWLINE, "Expect '\\n' after variable declaration.");
 
 	define_variable(global);
 }
@@ -663,11 +666,13 @@ static void return_statement() {
 		error("Cannot return from top-level code.");
 	}
 
-	if (match(TOKEN_NEWLINE)) {
+	if (match(TOKEN_SEMICOLON))  {
+		// if (match(TOKEN_NEWLINE)) {
 		emit_return();
 	} else {
 		expression();
-		consume(TOKEN_NEWLINE, "Expect '\\n' after return value.");
+		consume(TOKEN_SEMICOLON, "Expect '\\n' after return value.");
+		// consume(TOKEN_NEWLINE, "Expect '\\n' after return value.");
 		emit_byte(OP_RETURN);
 	}
 }
