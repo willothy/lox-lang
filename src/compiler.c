@@ -188,9 +188,7 @@ static bool match(TokenType type) {
 	if (!check(type)) {
 		return false;
 	};
-	if (type != TOKEN_NEWLINE) {
-		advance();
-	}
+	advance();
 	return true;
 }
 
@@ -592,7 +590,6 @@ static void while_statement() {
 	expression();
 
 	uint32_t exit_jump = emit_jump(OP_JUMP_IF_FALSE);
-	emit_byte(OP_POP);
 	statement();
 	emit_loop(loop_start);
 
@@ -641,6 +638,8 @@ static void for_statement() {
 		loop_start = increment_start;
 		patch_jump(body_jump);
 	}
+
+	consume(TOKEN_LEFT_BRACE, "Expect '{' after for clauses.");
 
 	begin_scope();
 	block();
