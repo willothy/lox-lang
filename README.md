@@ -1,4 +1,22 @@
-Crafting interpreters
+Initially based on part 2 of crafting interpreters.
+
+Features:
+
+- Lists
+- Dicts
+- Interned strings
+- NaN Boxing
+- Closures
+- GC
+
+Future goals:
+
+- Everything is an expression
+- Native objects
+- Methods incl. methods for primitive types
+- Module system
+- Gradual typing (compile time checks only)
+- LLVM JIT?
 
 TODO:
 
