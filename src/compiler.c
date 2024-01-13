@@ -358,12 +358,8 @@ static void expression_statement() {
 }
 
 static void if_statement() {
-	// TODO: The source implementation requires parentheses around the condition.
-	// My version of Lox will not.
-	consume(TOKEN_LEFT_PAREN, "Expect '(' after 'if'.");
 	// TODO: support nil-matching / := / if let expr
 	expression();
-	consume(TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
 
 	uint32_t then_jump = emit_jump(OP_JUMP_IF_FALSE);
 	emit_byte(OP_POP);
@@ -435,29 +431,31 @@ static void add_local(Token name) {
 }
 
 static void mark_initialized() {
-	if (current->scope_depth == 0) {
-		return;
-	}
+	// if (current->scope_depth == 0) {
+	// 	return;
+	// }
 	current->locals[current->local_count - 1].depth = current->scope_depth;
 }
 
 static void define_variable(uint32_t global) {
-	if (current->scope_depth > 0) {
-		mark_initialized();
-		return;
-	};
-
-	if (global > UINT8_MAX) {
-		// TODO: is this the correct order?
-		emit_bytes(OP_DEFINE_GLOBAL_LONG, global & 0xff);
-		emit_bytes( (global >> 8) & 0xff, (global >> 16) & 0xff);
-	} else {
-		emit_bytes(OP_DEFINE_GLOBAL, global);
-	}
+	mark_initialized();
+	return;
+	// if (current->scope_depth > 0) {
+	// 	mark_initialized();
+	// 	return;
+	// };
+	//
+	// if (global > UINT8_MAX) {
+	// 	// TODO: is this the correct order?
+	// 	emit_bytes(OP_DEFINE_GLOBAL_LONG, global & 0xff);
+	// 	emit_bytes( (global >> 8) & 0xff, (global >> 16) & 0xff);
+	// } else {
+	// 	emit_bytes(OP_DEFINE_GLOBAL, global);
+	// }
 }
 
 static void declare_variable() {
-	if (current->scope_depth == 0) return;
+	// if (current->scope_depth == 0) return;
 
 #ifndef ALLOW_SHADOWING
 	for (int i = current->local_count - 1; i >= 0; i--) {
@@ -472,7 +470,7 @@ static void declare_variable() {
 	}
 #endif
 
-	add_local(*ref_prev_token());
+	add_local(prev_token());
 }
 
 static void begin_scope() {
@@ -591,10 +589,7 @@ static void block() {
 static void while_statement() {
 	size_t loop_start = current_chunk()->count;
 
-	// TODO: Don't require parentheses around the condition.
-	consume(TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
 	expression();
-	consume(TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
 
 	uint32_t exit_jump = emit_jump(OP_JUMP_IF_FALSE);
 	emit_byte(OP_POP);
@@ -613,8 +608,6 @@ static void while_statement() {
 // TODO: Support conditionless loops in expression position.
 static void for_statement() {
 	begin_scope();
-	// TODO: Don't require parentheses.
-	consume(TOKEN_LEFT_PAREN, "Expect '(' after 'for'.");
 	if (match(TOKEN_SEMICOLON)) {
 		// No initializer.
 	} else if (match(TOKEN_VAR)) {
@@ -637,19 +630,23 @@ static void for_statement() {
 	}
 
 	uint32_t org_loop_start = loop_start;
-	if (!match(TOKEN_RIGHT_PAREN)) {
+	if (!check(TOKEN_LEFT_BRACE)) {
 		uint32_t body_jump = emit_jump(OP_JUMP);
 		uint32_t increment_start = current_chunk()->count;
 		expression();
 		emit_byte(OP_POP);
 		// TODO: Don't require parentheses.
-		consume(TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
+		// consume(TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
 		emit_loop(loop_start);
 		loop_start = increment_start;
 		patch_jump(body_jump);
 	}
 
-	statement();
+	begin_scope();
+	block();
+	end_scope();
+	// statement();
+	// block();
 
 	emit_loop(loop_start);
 

@@ -1,15 +1,7 @@
 var test = fun(x) {
-  print(x)
+  for var i = 0; i < 10; i = i + 1 {
+    print(i)
+  }}
 }
 
-var x = {
-  test: 1
-}
-
-print(x)
-
-x.test2 = 2
-
-x.test = x.test2
-
-print(x.test2)
+test(5)
