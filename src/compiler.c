@@ -590,7 +590,10 @@ static void while_statement() {
 	expression();
 
 	uint32_t exit_jump = emit_jump(OP_JUMP_IF_FALSE);
-	statement();
+	begin_scope();
+	consume(TOKEN_LEFT_BRACE, "Expect '{' after while condition.");
+	block();
+	end_scope();
 	emit_loop(loop_start);
 
 	patch_jump(exit_jump);
