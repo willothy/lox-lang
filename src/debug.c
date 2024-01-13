@@ -23,7 +23,7 @@ static size_t constant_long_instruction(const char* name, Chunk *chunk, int offs
 	idx |= (uint16_t)chunk->code[offset + 2] << 8;
 	idx |= (uint16_t)chunk->code[offset + 3] << 16;
 	printf("%-16s %4d '", name, idx);
-	value_print(chunk->constants.values[idx]);
+	// value_print(chunk->constants.values[idx]);
 	printf("'\n");
 	return offset + 4;
 }
@@ -76,6 +76,14 @@ size_t disassemble_instruction(Chunk *chunk, size_t offset) {
 
 	uint8_t instruction = chunk->code[offset];
 	switch (instruction) {
+	case OP_DICT:
+		return byte_instruction("OP_DICT", chunk, offset);
+	case OP_DICT_LONG:
+		return byte_long_instruction("OP_DICT_LONG", chunk, offset);
+	case OP_SET_FIELD:
+		return byte_instruction("OP_SET_FIELD", chunk, offset);
+	case OP_GET_FIELD:
+		return byte_instruction("OP_GET_FIELD", chunk, offset);
 	case OP_RETURN:
 		return simple_instruction("OP_RETURN", offset);
 	case OP_CALL:
@@ -84,8 +92,6 @@ size_t disassemble_instruction(Chunk *chunk, size_t offset) {
 		return byte_instruction("OP_LIST", chunk, offset);
 	case OP_LIST_LONG:
 		return byte_long_instruction("OP_LIST_LONG", chunk, offset);
-	// case OP_PRINT:
-	// 	return simple_instruction("OP_PRINT", offset);
 	case OP_CLOSURE: {
 		offset++;
 		uint8_t constant = chunk->code[offset++];
@@ -150,10 +156,6 @@ size_t disassemble_instruction(Chunk *chunk, size_t offset) {
 		return byte_instruction("OP_SET_LOCAL", chunk, offset);
 	case OP_SET_LOCAL_LONG:
 		return byte_long_instruction("OP_SET_LOCAL_LONG", chunk, offset);
-	case OP_GET_FIELD:
-		return constant_instruction("OP_GET_FIELD", chunk, offset);
-	case OP_SET_FIELD:
-		return constant_instruction("OP_SET_FIELD", chunk, offset);
 	case OP_JUMP:
 		return jump_instruction("OP_JUMP", 1, chunk, offset);
 	case OP_JUMP_IF_FALSE:

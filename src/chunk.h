@@ -50,7 +50,6 @@ typedef enum {
   // OP_MODULO,
   OP_NEGATE,
   OP_RETURN,
-  // OP_PRINT,
   OP_POP,
 } Opcode;
 

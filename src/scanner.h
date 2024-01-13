@@ -52,7 +52,6 @@ typedef enum {
   TOKEN_IF,
   TOKEN_NIL,
   TOKEN_OR,
-  // TOKEN_PRINT,
   TOKEN_RETURN,
   TOKEN_SUPER,
   TOKEN_THIS,
@@ -61,17 +60,18 @@ typedef enum {
   TOKEN_WHILE,
 
   TOKEN_ERROR,
-  TOKEN_EOF
+  TOKEN_EOF,
+  TOKEN_NEWLINE
 } TokenType;
 
 typedef struct {
   TokenType type;
-  const char *start;
+  char *start;
   size_t length;
   Linenr line;
 } Token;
 
-void scanner_init(const char *source);
+void scanner_init(char *source);
 Token scanner_next_token();
 
 #endif

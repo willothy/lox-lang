@@ -758,10 +758,6 @@ static InterpretResult run() {
 			frame->slots[slot] = vm_peek(0);
 			break;
 		}
-		// case OP_PRINT: {
-		// 	value_println(vm_pop());
-		// 	break;
-		// }
 		case OP_JUMP: {
 			frame->ip += READ_DWORD();
 			break;

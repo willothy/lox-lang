@@ -1,17 +1,20 @@
+#include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "scanner.h"
 #include "chunk.h"
+#include "object.h"
 
 typedef struct {
-	const char* start;
-	const char* current;
+	char* start;
+	char* current;
 	Linenr line;
+	size_t offset;
 } Scanner;
 
 Scanner scanner;
-
 
 static Token token(TokenType type) {
 	Token token;
@@ -37,6 +40,7 @@ static bool is_alpha(char c) {
 }
 
 static char advance() {
+	scanner.offset++;
 	return *scanner.current++;
 }
 
@@ -56,7 +60,8 @@ static bool match(char expected) {
 	return true;
 }
 
-static void skip_whitespace() {
+static bool skip_whitespace() {
+	bool newline = false;
 	for (;;) {
 		char c = peek();
 		switch (c) {
@@ -68,26 +73,36 @@ static void skip_whitespace() {
 		case '\n': {
 			scanner.line++;
 			advance();
+			newline = true;
 			break;
 		}
 		case '/': {
 			if (peek_next() == '/') {
 				while (peek() != '\n' && !is_at_end()) advance();
 			} else {
-				return;
+				return newline;
 			}
 		}
 		default:
-			return;
+			return newline;
 		}
 	}
+	return newline;
 }
 
-static Token error_token(const char* message) {
+static Token error_token(const char* format, ...) {
+	va_list args;
+	char *message = malloc(1024);
+	va_start(args, format);
+	size_t len = vsnprintf(message, 1024, format, args);
+	va_end(args);
+
+	ObjectString *msg = copy_string(message, len);
+
 	Token token;
 	token.type = TOKEN_ERROR;
-	token.start = message;
-	token.length = (size_t)strlen(message);
+	token.start = msg->chars;
+	token.length = msg->length;
 	token.line = scanner.line;
 	return token;
 }
@@ -167,17 +182,24 @@ static Token ident() {
 	return token(ident_type());
 }
 
-void scanner_init(const char* source) {
+void scanner_init(char* source) {
 	scanner.start = source;
 	scanner.current = source;
 	scanner.line = 1;
+	scanner.offset = 0;
 }
 
 Token scanner_next_token() {
-	skip_whitespace();
-	scanner.start = scanner.current;
+	bool newline = skip_whitespace();
 
-	if (is_at_end()) return token(TOKEN_EOF);
+	scanner.start = scanner.current;
+	if (newline) {
+		return token(TOKEN_NEWLINE);
+	}
+
+	if (is_at_end()) {
+		return token(TOKEN_EOF);
+	}
 
 	char c = advance();
 
@@ -246,11 +268,12 @@ Token scanner_next_token() {
 	}
 
 	if (is_alpha(c)) {
+		printf("c: %c\n", c);
 		return ident();
 	}
 	if (is_digit(c)) {
 		return number();
 	}
 
-	return error_token("Unexpected character.");
+	return error_token("Unexpected character %c (%d).", c, c);
 }

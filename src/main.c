@@ -13,7 +13,7 @@
 
 #include "vm.h"
 
-static ObjectFunction *try_compile(const char *src) {
+static ObjectFunction *try_compile(char *src) {
 	ObjectFunction *function = compile(src);
 	if (!function) {
 		exit(65);
@@ -87,7 +87,7 @@ static void run_file(const char *path, const char *output_path) {
 	}
 
 	InterpretResult res = vm_interpret(function);
-	free (src);
+	free(src);
 
 	if (res == INTERPRET_COMPILE_ERROR) exit(65);
 	if (res == INTERPRET_RUNTIME_ERROR) exit(70);

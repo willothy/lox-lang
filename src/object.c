@@ -64,6 +64,10 @@ static ObjectString* alloc_string(char *chars, size_t length, uint32_t hash, boo
 	return str;
 }
 
+void string_print(ObjectString *str) {
+	printf("\"%.*s\"", (int)str->length, str->chars);
+}
+
 ObjectString* copy_string(const char *chars, size_t length) {
 	uint32_t hash = hash_string(chars, length);
 	ObjectString *interned = table_find_string(&vm.strings, chars, length, hash);

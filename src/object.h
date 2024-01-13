@@ -169,6 +169,7 @@ ObjectString *copy_string(const char *start, size_t length);
 ObjectString *take_string(char *chars, size_t length);
 ObjectString *ref_string(char *chars, size_t length);
 ObjectString *const_string(const char *chars, size_t length);
+void string_print(ObjectString *string);
 
 ObjectList *list_new();
 void list_set(ObjectList *list, size_t index, Value value);

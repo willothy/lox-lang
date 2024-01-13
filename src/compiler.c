@@ -14,8 +14,9 @@
 #endif
 
 typedef struct Parser {
-	Token current;
-	Token previous;
+	Token *tokens;
+	size_t tok_count;
+	size_t current;
 	bool had_error;
 	bool panic_mode;
 } Parser;
@@ -101,26 +102,76 @@ static void error_at(Token *token, const char* message) {
 }
 
 static void error_at_current(const char *message) {
-	error_at(&parser.current, message);
+	error_at(&parser.tokens[parser.current], message);
 }
 
 static void error(const char* message) {
-	error_at(&parser.previous, message);
+	error_at(&parser.tokens[parser.current - 1], message);
+}
+
+static inline TokenType current_token_type() {
+	return parser.tokens[parser.current].type;
+}
+
+static inline Token current_token() {
+	return parser.tokens[parser.current];
+}
+
+static inline Token prev_token() {
+	return parser.tokens[parser.current - 1];
+}
+
+static inline Token *ref_prev_token() {
+	return &parser.tokens[parser.current - 1];
+}
+
+static void backtrack(size_t n) {
+	parser.current -= n;
 }
 
 static void advance() {
-	parser.previous = parser.current;
+	parser.current++;
 
 	for (;;) {
-		parser.current = scanner_next_token();
-		if (parser.current.type != TOKEN_ERROR) break;
-		error_at_current(parser.current.start);
+		if (current_token_type() != TOKEN_ERROR) break;
+		error_at_current(current_token().start);
 	}
 }
 
-static void consume(TokenType type, const char* message) {
-	if (parser.current.type == type) {
+static size_t skip_newlines() {
+	size_t newlines = 0;
+	while (current_token_type() == TOKEN_NEWLINE) {
+		newlines++;
 		advance();
+	}
+	return newlines;
+}
+
+static bool check(TokenType type) {
+	size_t skipped = skip_newlines();
+	if (skipped != 0 && type == TOKEN_NEWLINE) {
+		backtrack(skipped);
+		return true;
+	}
+	bool rv = current_token_type() == type;
+	if (!rv) {
+		backtrack(skipped);
+	}
+	return rv;
+}
+
+static bool match(TokenType type) {
+	if (!check(type)) {
+		return false;
+	};
+	if (type != TOKEN_NEWLINE) {
+		advance();
+	}
+	return true;
+}
+
+static void consume(TokenType type, const char* message) {
+	if (match(type)) {
 		return;
 	}
 
@@ -128,7 +179,7 @@ static void consume(TokenType type, const char* message) {
 }
 
 static void emit_byte(uint8_t byte) {
-	chunk_write(current_chunk(), byte, parser.previous.line);
+	chunk_write(current_chunk(), byte, prev_token().line);
 }
 
 static void emit_bytes(uint32_t byte1, uint32_t byte2) {
@@ -178,7 +229,12 @@ static void emit_return() {
 }
 
 static uint32_t emit_constant(Value value) {
-	return chunk_write_constant(current_chunk(), value, parser.previous.line);
+	return chunk_write_constant(current_chunk(), value, prev_token().line);
+}
+
+static void parser_init(Token *tokens, size_t count) {
+	parser.tokens = tokens;
+	parser.tok_count = count;
 }
 
 static void compiler_init(Compiler *compiler, FunctionType type) {
@@ -191,7 +247,7 @@ static void compiler_init(Compiler *compiler, FunctionType type) {
 
 	switch(type) {
 	case FN_TYPE_NAMED:
-		current->function->name = copy_string((char*)parser.previous.start, parser.previous.length);
+		current->function->name = copy_string((char*)prev_token().start, prev_token().length);
 		break;
 	case FN_TYPE_ANONYMOUS:
 		current->function->name = const_string("", 0);
@@ -221,16 +277,6 @@ static ObjectFunction *end_compilation() {
 	return function;
 }
 
-static bool check(TokenType type) {
-	return parser.current.type == type;
-}
-
-static bool match(TokenType type) {
-	if (!check(type)) return false;
-	advance();
-	return true;
-}
-
 static void expression();
 static void binary(bool can_assign);
 static void statement();
@@ -239,13 +285,14 @@ static void block();
 static ParseRule *get_rule(TokenType type);
 
 static void number(bool can_assign) {
-	double value = strtod(parser.previous.start, NULL);
+	double value = strtod(prev_token().start, NULL);
 	emit_constant(NUMBER_VAL(value));
 }
 
 static void parse_precedence(Precedence precedence) {
+	skip_newlines();
 	advance();
-	ParseFn prefix_rule = get_rule(parser.previous.type)->prefix;
+	ParseFn prefix_rule = get_rule(prev_token().type)->prefix;
 	if (prefix_rule == NULL) {
 		error("Expected expression.");
 		return;
@@ -254,9 +301,9 @@ static void parse_precedence(Precedence precedence) {
 	bool can_assign = precedence <= PREC_ASSIGNMENT;
 	prefix_rule(can_assign);
 
-	while (precedence <= get_rule(parser.current.type)->precedence) {
+	while (precedence <= get_rule(current_token().type)->precedence) {
 		advance();
-		ParseFn infix_rule = get_rule(parser.previous.type)->infix;
+		ParseFn infix_rule = get_rule(prev_token().type)->infix;
 		infix_rule(can_assign);
 	}
 
@@ -277,7 +324,8 @@ static void expression() {
 
 static void expression_statement() {
 	expression();
-	consume(TOKEN_SEMICOLON, "Expect ';' after expression.");
+	// consume(TOKEN_SEMICOLON, "Expect ';' after expression.");
+	consume(TOKEN_NEWLINE, "Expect '\\n' after expression.");
 	emit_byte(OP_POP);
 }
 
@@ -307,25 +355,18 @@ static void if_statement() {
 	patch_jump(else_jump);
 }
 
-// static void print_statement() {
-// 	expression();
-// 	consume(TOKEN_SEMICOLON, "Expect ';' after value.");
-// 	emit_byte(OP_PRINT);
-// }
-
 static void synchronize() {
 	parser.panic_mode = false;
 
-	while (parser.current.type != TOKEN_EOF) {
-		if (parser.previous.type == TOKEN_SEMICOLON) return;
-		switch (parser.current.type) {
+	while (current_token().type != TOKEN_EOF) {
+		if (prev_token().type == TOKEN_NEWLINE) return;
+		switch (current_token().type) {
 		case TOKEN_CLASS:
 		case TOKEN_FUN:
 		case TOKEN_VAR:
 		case TOKEN_FOR:
 		case TOKEN_IF:
 		case TOKEN_WHILE:
-		// case TOKEN_PRINT:
 		case TOKEN_RETURN:
 			return;
 		default:
@@ -389,8 +430,6 @@ static void define_variable(uint32_t global) {
 static void declare_variable() {
 	if (current->scope_depth == 0) return;
 
-	Token *name = &parser.previous;
-
 #ifndef ALLOW_SHADOWING
 	for (int i = current->local_count - 1; i >= 0; i--) {
 		Local* local = &current->locals[i];
@@ -404,7 +443,7 @@ static void declare_variable() {
 	}
 #endif
 
-	add_local(*name);
+	add_local(*ref_prev_token());
 }
 
 static void begin_scope() {
@@ -436,7 +475,7 @@ static uint32_t parse_variable(const char *message) {
 	declare_variable();
 	if (current->scope_depth > 0) return 0;
 
-	return identifier_constant(&parser.previous);
+	return identifier_constant(&parser.tokens[parser.current-1]);
 }
 
 static void var_declaration() {
@@ -447,7 +486,7 @@ static void var_declaration() {
 	} else {
 		emit_byte(OP_NIL);
 	}
-	consume(TOKEN_SEMICOLON, "Expect ';' after variable declaration.");
+	consume(TOKEN_NEWLINE, "Expect '\\n' after variable declaration.");
 
 	define_variable(global);
 }
@@ -597,11 +636,11 @@ static void return_statement() {
 		error("Cannot return from top-level code.");
 	}
 
-	if (match(TOKEN_SEMICOLON)) {
+	if (match(TOKEN_NEWLINE)) {
 		emit_return();
 	} else {
 		expression();
-		consume(TOKEN_SEMICOLON, "Expect ';' after return value.");
+		consume(TOKEN_NEWLINE, "Expect '\\n' after return value.");
 		emit_byte(OP_RETURN);
 	}
 }
@@ -627,9 +666,6 @@ static void or_(bool can_assign) {
 }
 
 static void statement() {
-	// if (match(TOKEN_PRINT)) {
-	// 	print_statement();
-	// } else
 	if (match(TOKEN_IF)) {
 		// TODO: support if in expression position
 		if_statement();
@@ -654,7 +690,7 @@ static void grouping(bool can_assign) {
 }
 
 static void unary(bool can_assign) {
-	TokenType operator_type = parser.previous.type;
+	TokenType operator_type = prev_token().type;
 
 	parse_precedence(PREC_UNARY); // operand
 
@@ -672,7 +708,7 @@ static void unary(bool can_assign) {
 }
 
 static void literal(bool can_assign) {
-	switch (parser.previous.type) {
+	switch (prev_token().type) {
 	case TOKEN_FALSE: {
 		emit_byte(OP_FALSE);
 		break;
@@ -690,7 +726,7 @@ static void literal(bool can_assign) {
 }
 
 static void string(bool can_assign) {
-	ObjectString *str = ref_string((char*)parser.previous.start + 1, parser.previous.length-2);
+	ObjectString *str = ref_string((char*)prev_token().start + 1, prev_token().length-2);
 	emit_constant(OBJ_VAL(str));
 }
 
@@ -806,7 +842,7 @@ static void named_variable(Token name, bool can_assign) {
 }
 
 static void variable(bool can_assign) {
-	named_variable(parser.previous, can_assign);
+	named_variable(prev_token(), can_assign);
 }
 
 static uint8_t argument_list() {
@@ -860,9 +896,10 @@ static uint32_t dict_entry_list() {
 	if (!check(TOKEN_RIGHT_BRACE)) {
 		do {
 			consume(TOKEN_IDENTIFIER, "Expect dict key after '{'.");
-			uint32_t key = identifier_constant(&parser.previous);
+			Token *prev = ref_prev_token();
+			uint32_t key = identifier_constant(prev);
 
-			ObjectString *str = copy_string((char*)parser.previous.start, parser.previous.length);
+			ObjectString *str = copy_string(prev->start, prev->length);
 			emit_constant(OBJ_VAL(str));
 
 			consume(TOKEN_COLON, "Expect ':' after dict key.");
@@ -890,7 +927,8 @@ static void dict(bool can_assign) {
 
 static void dot(bool can_assign) {
 	consume(TOKEN_IDENTIFIER, "Expect property name after '.'.");
-	uint32_t name = identifier_constant(&parser.previous);
+	Token *prev = ref_prev_token();
+	uint32_t name = identifier_constant(prev);
 
 	bool is_long = name > UINT8_MAX;
 	emit_bytes(is_long ? OP_CONSTANT_LONG : OP_CONSTANT, name & 0xff);
@@ -924,6 +962,7 @@ ParseRule rules[] = {
 	[TOKEN_PLUS]          = {NULL,     binary, PREC_TERM},
 	[TOKEN_PLUS_EQUAL]    = {NULL,     NULL,   PREC_ASSIGNMENT}, //new
 	[TOKEN_SEMICOLON]     = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_NEWLINE]       = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_SLASH]         = {NULL,     binary, PREC_FACTOR},
 	[TOKEN_SLASH_EQUAL]   = {NULL,     NULL,   PREC_ASSIGNMENT}, //new
 	[TOKEN_STAR]          = {NULL,     binary, PREC_FACTOR},
@@ -948,7 +987,6 @@ ParseRule rules[] = {
 	[TOKEN_IF]            = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_NIL]           = {literal,  NULL,   PREC_NONE},
 	[TOKEN_OR]            = {NULL,     or_,    PREC_OR},
-	// [TOKEN_PRINT]         = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_RETURN]        = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_SUPER]         = {NULL,     NULL,   PREC_NONE},
 	// Superclasses
@@ -968,7 +1006,7 @@ static ParseRule *get_rule(TokenType type) {
 }
 
 static void binary(bool can_assign) {
-	TokenType operator_type = parser.previous.type;
+	TokenType operator_type = prev_token().type;
 	ParseRule *rule = get_rule(operator_type);
 	parse_precedence((Precedence)(rule->precedence + 1)); // right operand
 
@@ -988,16 +1026,30 @@ static void binary(bool can_assign) {
 }
 
 
-ObjectFunction* compile(const char *src) {
+ObjectFunction* compile(char *src) {
 	scanner_init(src);
+
+	Token *tokens = NULL;
+	size_t count = 0;
+	size_t capacity = 0;
+	while (true) {
+		Token t = scanner_next_token();
+		if (count + 1 > capacity) {
+			size_t new_capacity = GROW_CAPACITY(capacity);
+			tokens = GROW_ARRAY(Token, tokens, capacity, new_capacity);
+			capacity = new_capacity;
+		}
+		tokens[count++] = t;
+		if (t.type == TOKEN_EOF) break;
+	}
+
+	parser_init(tokens, count);
 
 	Compiler compiler;
 	compiler_init(&compiler, FN_TYPE_SCRIPT);
 
 	parser.had_error = false;
 	parser.panic_mode = false;
-
-	advance();
 
 	while (!match(TOKEN_EOF)) {
 		declaration();
