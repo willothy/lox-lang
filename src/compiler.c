@@ -15,7 +15,8 @@
 
 typedef struct Parser {
 	Token *tokens;
-	size_t tok_count;
+	size_t count;
+	size_t capacity;
 	size_t current;
 	bool had_error;
 	bool panic_mode;
@@ -109,12 +110,31 @@ static void error(const char* message) {
 	error_at(&parser.tokens[parser.current - 1], message);
 }
 
-static inline TokenType current_token_type() {
-	return parser.tokens[parser.current].type;
+static Token current_token() {
+	if (parser.current >= parser.count) {
+		if (parser.count > 0 && parser.tokens[parser.count - 1].type == TOKEN_EOF) {
+			// Don't attempt to read past the end of the file.
+			// Return the EOF token each time if called repeatedly.
+			return parser.tokens[parser.count-1];
+		}
+		// Since we have backtracking and could have more lookahead in the future,
+		// this could require multiple reallocations (though this is very unlikely).
+		do {
+			if (parser.count + 1 >= parser.capacity) {
+				size_t capacity = GROW_CAPACITY(parser.capacity);
+				parser.tokens = GROW_ARRAY(Token, parser.tokens, parser.capacity, capacity);
+				parser.capacity = capacity;
+			}
+			Token t = scanner_next_token();
+			parser.tokens[parser.count++] = t;
+		}
+		while (parser.count < parser.current && (parser.tokens[parser.count-1].type != TOKEN_EOF));
+	}
+	return parser.tokens[parser.current];
 }
 
-static inline Token current_token() {
-	return parser.tokens[parser.current];
+static inline TokenType current_token_type() {
+	return current_token().type;
 }
 
 static inline Token prev_token() {
@@ -132,8 +152,12 @@ static void backtrack(size_t n) {
 static void advance() {
 	parser.current++;
 
+	if (parser.current >= parser.count) {
+		current_token();
+	}
+
 	for (;;) {
-		if (current_token_type() != TOKEN_ERROR) break;
+		if (current_token().type != TOKEN_ERROR) break;
 		error_at_current(current_token().start);
 	}
 }
@@ -232,9 +256,12 @@ static uint32_t emit_constant(Value value) {
 	return chunk_write_constant(current_chunk(), value, prev_token().line);
 }
 
-static void parser_init(Token *tokens, size_t count) {
-	parser.tokens = tokens;
-	parser.tok_count = count;
+static void parser_init() {
+	parser.tokens = NULL;
+	parser.count = 0;
+	parser.capacity = 0;
+	parser.had_error = false;
+	parser.panic_mode = false;
 }
 
 static void compiler_init(Compiler *compiler, FunctionType type) {
@@ -1029,27 +1056,10 @@ static void binary(bool can_assign) {
 ObjectFunction* compile(char *src) {
 	scanner_init(src);
 
-	Token *tokens = NULL;
-	size_t count = 0;
-	size_t capacity = 0;
-	while (true) {
-		Token t = scanner_next_token();
-		if (count + 1 > capacity) {
-			size_t new_capacity = GROW_CAPACITY(capacity);
-			tokens = GROW_ARRAY(Token, tokens, capacity, new_capacity);
-			capacity = new_capacity;
-		}
-		tokens[count++] = t;
-		if (t.type == TOKEN_EOF) break;
-	}
-
-	parser_init(tokens, count);
+	parser_init();
 
 	Compiler compiler;
 	compiler_init(&compiler, FN_TYPE_SCRIPT);
-
-	parser.had_error = false;
-	parser.panic_mode = false;
 
 	while (!match(TOKEN_EOF)) {
 		declaration();

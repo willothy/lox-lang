@@ -268,7 +268,6 @@ Token scanner_next_token() {
 	}
 
 	if (is_alpha(c)) {
-		printf("c: %c\n", c);
 		return ident();
 	}
 	if (is_digit(c)) {
