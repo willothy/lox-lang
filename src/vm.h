@@ -10,7 +10,7 @@
 #define STACK_INITIAL (FRAMES_MAX * UINT8_COUNT)
 
 typedef struct {
-  ObjectClosure *closure;
+  Closure *closure;
   uint8_t *ip;
   Value *slots;
 } CallFrame;
@@ -42,7 +42,7 @@ typedef struct {
   bool mark_value;
 
   // Heap / globals
-  ObjectUpvalue *open_upvalues;
+  Upvalue *open_upvalues;
   Object *objects;
   Table strings;
   // TODO: come up with a faster way to look up globals (maybe by index instead
@@ -59,6 +59,6 @@ void vm_push(Value value);
 Value vm_pop();
 Value vm_peek(size_t distance);
 
-InterpretResult vm_interpret(ObjectFunction *function);
+InterpretResult vm_interpret(Function *function);
 
 #endif

@@ -13,8 +13,8 @@
 
 #include "vm.h"
 
-static ObjectFunction *try_compile(char *src) {
-	ObjectFunction *function = compile(src);
+static Function *try_compile(char *src) {
+	Function *function = compile(src);
 	if (!function) {
 		exit(65);
 	}
@@ -31,7 +31,7 @@ static void repl() {
 			break;
 		}
 
-		ObjectFunction *f = compile(line);
+		Function *f = compile(line);
 
 		if (f) vm_interpret(f);
 	}
@@ -64,7 +64,7 @@ static char *read_file(const char *path) {
 static void run_file(const char *path, const char *output_path) {
 	char *src = read_file(path);
 
-	ObjectFunction *function = try_compile(src);
+	Function *function = try_compile(src);
 
 	if (output_path) {
 		// FILE *file = fopen(output_path, "wb");

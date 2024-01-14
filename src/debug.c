@@ -98,7 +98,7 @@ size_t disassemble_instruction(Chunk *chunk, size_t offset) {
 		printf("%-16s %4d ", "OP_CLOSURE", constant);
 		value_println(chunk->constants.values[constant]);
 
-		ObjectFunction *function = AS_FUNCTION(chunk->constants.values[constant]);
+		Function *function = AS_FUNCTION(chunk->constants.values[constant]);
 		for (int i = 0; i < function->upvalue_count; i++) {
 			uint8_t is_local = chunk->code[offset++];
 			uint8_t index = chunk->code[offset++];
@@ -115,7 +115,7 @@ size_t disassemble_instruction(Chunk *chunk, size_t offset) {
 		printf("%-16s %4d ", "OP_CLOSURE_LONG", constant);
 		value_println(chunk->constants.values[constant]);
 
-		ObjectFunction *function = AS_FUNCTION(chunk->constants.values[constant]);
+		Function *function = AS_FUNCTION(chunk->constants.values[constant]);
 		for (int i = 0; i < function->upvalue_count; i++) {
 			uint8_t is_local = chunk->code[offset++];
 			uint8_t index = chunk->code[offset++];

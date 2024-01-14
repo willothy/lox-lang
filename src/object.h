@@ -94,7 +94,7 @@ static inline Object *object_next(Object *obj) {
 //
 // TODO: implement utf-8 strings, with codepoint indexing. This will require
 // some changes to the scanner and string literal parsing.
-struct ObjectString {
+struct String {
   Object object;
   size_t length;
   uint32_t hash;
@@ -113,88 +113,89 @@ static inline bool is_obj_type(Value value, ObjectType type) {
 #define IS_LIST(value) is_obj_type(value, OBJ_LIST)
 #define IS_DICT(value) is_obj_type(value, OBJ_DICT)
 
-#define AS_STRING(value) ((ObjectString *)AS_OBJ(value))
-#define AS_CSTRING(value) (((ObjectString *)AS_OBJ(value))->chars)
-#define AS_FUNCTION(value) ((ObjectFunction *)AS_OBJ(value))
-#define AS_NATIVE(value) ((ObjectNative *)AS_OBJ(value))
-#define AS_NATIVE_FN(value) (((ObjectNative *)AS_OBJ(value))->function)
-#define AS_CLOSURE(value) ((ObjectClosure *)AS_OBJ(value))
-#define AS_UPVALUE(value) ((ObjectUpvalue *)AS_OBJ(value))
-#define AS_LIST(value) ((ObjectList *)AS_OBJ(value))
-#define AS_DICT(value) ((ObjectDict *)AS_OBJ(value))
+#define AS_STRING(value) ((String *)AS_OBJ(value))
+#define AS_CSTRING(value) (((String *)AS_OBJ(value))->chars)
+#define AS_FUNCTION(value) ((Function *)AS_OBJ(value))
+#define AS_NATIVE(value) ((NativeFunction *)AS_OBJ(value))
+#define AS_NATIVE_FN(value) (((NativeFunction *)AS_OBJ(value))->function)
+#define AS_CLOSURE(value) ((Closure *)AS_OBJ(value))
+#define AS_UPVALUE(value) ((Upvalue *)AS_OBJ(value))
+#define AS_LIST(value) ((List *)AS_OBJ(value))
+#define AS_DICT(value) ((Dictionary *)AS_OBJ(value))
 
 typedef struct {
   Object object;
   Chunk chunk;
-  ObjectString *name;
+  String *name;
   uint8_t upvalue_count;
   uint8_t arity; // I don't think anyone will use more than 255 args ever.
-} ObjectFunction;
+  // TODO: do I want to support multiple return values an varargs?
+} Function;
 
-typedef struct ObjectUpvalue {
+typedef struct Upvalue {
   Object obj;
   Value *location;
   Value closed;
-  struct ObjectUpvalue *next;
-} ObjectUpvalue;
+  struct Upvalue *next;
+} Upvalue;
 
 typedef struct {
   Object obj;
   // TODO: Only wrap functions that actually capture variables.
-  ObjectFunction *function;
-  ObjectUpvalue **upvalues;
+  Function *function;
+  Upvalue **upvalues;
   uint8_t upvalue_count;
-} ObjectClosure;
+} Closure;
 
-typedef Value (*NativeFn)(uint8_t argc, Value *args);
+typedef Value (*NativeFnPtr)(uint8_t argc, Value *args);
 
 // TODO: implement a way for native functions to throw errors.
 typedef struct {
   Object obj;
-  NativeFn function;
+  NativeFnPtr function;
   uint8_t arity;
-} ObjectNative;
+} NativeFunction;
 
 typedef struct {
   Object obj;
   ValueArray values;
-} ObjectList;
+} List;
 
 typedef struct {
   Object obj;
   Table table;
-} ObjectDict;
+} Dictionary;
 
-ObjectString *copy_string(const char *start, size_t length);
-ObjectString *take_string(char *chars, size_t length);
-ObjectString *ref_string(char *chars, size_t length);
-ObjectString *const_string(const char *chars, size_t length);
-void string_print(ObjectString *string);
+String *copy_string(const char *start, size_t length);
+String *take_string(char *chars, size_t length);
+String *ref_string(char *chars, size_t length);
+String *const_string(const char *chars, size_t length);
+void string_print(String *string);
 
-ObjectList *list_new();
-void list_set(ObjectList *list, size_t index, Value value);
-Value list_remove(ObjectList *list, size_t index);
-Value list_pop(ObjectList *list);
-void list_push(ObjectList *list, Value value);
-Value list_get(ObjectList *list, size_t index);
-size_t list_length(ObjectList *list);
+List *list_new();
+void list_set(List *list, size_t index, Value value);
+Value list_remove(List *list, size_t index);
+Value list_pop(List *list);
+void list_push(List *list, Value value);
+Value list_get(List *list, size_t index);
+size_t list_length(List *list);
 
-ObjectDict *dict_new();
-void dict_set(ObjectDict *dict, ObjectString *key, Value value);
-void dict_clear(ObjectDict *dict);
-Value dict_remove(ObjectDict *dict, ObjectString *key);
-Value dict_get(ObjectDict *dict, ObjectString *key);
+Dictionary *dict_new();
+void dict_set(Dictionary *dict, String *key, Value value);
+void dict_clear(Dictionary *dict);
+Value dict_remove(Dictionary *dict, String *key);
+Value dict_get(Dictionary *dict, String *key);
 
 // void dict_keys(ObjectDict *dict, ObjectList *list);
 // void dict_values(ObjectDict *dict, ObjectList *list);
 
-ObjectUpvalue *upvalue_new(Value *slot);
+Upvalue *upvalue_new(Value *slot);
 
-ObjectClosure *closure_new(ObjectFunction *function);
-ObjectFunction *function_new();
-void function_print(ObjectFunction *function);
+Closure *closure_new(Function *function);
+Function *function_new();
+void function_print(Function *function);
 
-ObjectNative *native_new(NativeFn function, uint8_t arity);
+NativeFunction *native_new(NativeFnPtr function, uint8_t arity);
 
 const char *object_type_name(ObjectType type);
 void object_print(Value obj);

@@ -53,8 +53,8 @@ static uint32_t hash_string(const char *key, size_t length) {
 	return hash;
 }
 
-static ObjectString* alloc_string(char *chars, size_t length, uint32_t hash, bool owned) {
-	ObjectString *str = ALLOCATE_OBJ(ObjectString, OBJ_STRING, owned);
+static String* alloc_string(char *chars, size_t length, uint32_t hash, bool owned) {
+	String *str = ALLOCATE_OBJ(String, OBJ_STRING, owned);
 	str->length = length;
 	str->chars  = chars;
 	str->hash   = hash;
@@ -64,13 +64,13 @@ static ObjectString* alloc_string(char *chars, size_t length, uint32_t hash, boo
 	return str;
 }
 
-void string_print(ObjectString *str) {
+void string_print(String *str) {
 	printf("\"%.*s\"", (int)str->length, str->chars);
 }
 
-ObjectString* copy_string(const char *chars, size_t length) {
+String* copy_string(const char *chars, size_t length) {
 	uint32_t hash = hash_string(chars, length);
-	ObjectString *interned = table_find_string(&vm.strings, chars, length, hash);
+	String *interned = table_find_string(&vm.strings, chars, length, hash);
 	if (interned != NULL) {
 		return interned;
 	}
@@ -81,9 +81,9 @@ ObjectString* copy_string(const char *chars, size_t length) {
 	return alloc_string(heap_chars, length, hash, true);
 }
 
-ObjectString *const_string(const char *chars, size_t length) {
+String *const_string(const char *chars, size_t length) {
 	uint32_t hash = hash_string(chars, length);
-	ObjectString *interned = table_find_string(&vm.strings, chars, length, hash);
+	String *interned = table_find_string(&vm.strings, chars, length, hash);
 	if (interned != NULL) {
 		// If the string is already interned, we should use the interned version
 		// to ensure equality checks work correctly.
@@ -94,7 +94,7 @@ ObjectString *const_string(const char *chars, size_t length) {
 	return alloc_string((char*)chars, length, hash, false);
 }
 
-ObjectString* ref_string(char *chars, size_t length) {
+String* ref_string(char *chars, size_t length) {
 	return copy_string(chars, length); // temporary bc we don't have GC to manage chunks
 	// uint32_t hash = hash_string(chars, length);
 	// ObjectString *interned = table_find_string(&vm.strings, chars, length, hash);
@@ -108,9 +108,9 @@ ObjectString* ref_string(char *chars, size_t length) {
 	// return alloc_string(chars, length, hash, false);
 }
 
-ObjectString *take_string(char *chars, size_t length) {
+String *take_string(char *chars, size_t length) {
 	uint32_t hash = hash_string(chars, length);
-	ObjectString *interned = table_find_string(&vm.strings, chars, length, hash);
+	String *interned = table_find_string(&vm.strings, chars, length, hash);
 	if (interned != NULL) {
 		FREE_ARRAY(char, chars, length + 1);
 		return interned;
@@ -192,8 +192,8 @@ void object_print(Value val) {
 	object_print_indented(val, 0);
 }
 
-ObjectFunction *function_new() {
-	ObjectFunction *function = ALLOCATE_OBJ(ObjectFunction, OBJ_FUNCTION, true);
+Function *function_new() {
+	Function *function = ALLOCATE_OBJ(Function, OBJ_FUNCTION, true);
 	function->arity = 0;
 	function->name = NULL;
 	function->upvalue_count = 0;
@@ -201,7 +201,7 @@ ObjectFunction *function_new() {
 	return function;
 }
 
-void function_print(ObjectFunction *function) {
+void function_print(Function *function) {
 	if (function->name == NULL) {
 		printf("<script>");
 		return;
@@ -213,29 +213,29 @@ void function_print(ObjectFunction *function) {
 	printf("<fn %.*s>", (int)function->name->length, function->name->chars);
 }
 
-ObjectNative *native_new(NativeFn function, uint8_t arity) {
-	ObjectNative *native = ALLOCATE_OBJ(ObjectNative, OBJ_NATIVE, true);
+NativeFunction *native_new(NativeFnPtr function, uint8_t arity) {
+	NativeFunction *native = ALLOCATE_OBJ(NativeFunction, OBJ_NATIVE, true);
 	native->function = function;
 	native->arity = arity;
 	return native;
 }
 
-ObjectClosure *closure_new(ObjectFunction *function) {
-	ObjectUpvalue **upvalues = ALLOCATE(ObjectUpvalue*, function->upvalue_count);
+Closure *closure_new(Function *function) {
+	Upvalue **upvalues = ALLOCATE(Upvalue*, function->upvalue_count);
 
 	for (int i = 0; i < function->upvalue_count; i++) {
 		upvalues[i] = NULL;
 	}
 
-	ObjectClosure *closure = ALLOCATE_OBJ(ObjectClosure, OBJ_CLOSURE, true);
+	Closure *closure = ALLOCATE_OBJ(Closure, OBJ_CLOSURE, true);
 	closure->function = function;
 	closure->upvalues = upvalues;
 	closure->upvalue_count = function->upvalue_count;
 	return closure;
 }
 
-ObjectUpvalue *upvalue_new(Value *slot) {
-	ObjectUpvalue *upvalue = ALLOCATE_OBJ(ObjectUpvalue, OBJ_UPVALUE, true);
+Upvalue *upvalue_new(Value *slot) {
+	Upvalue *upvalue = ALLOCATE_OBJ(Upvalue, OBJ_UPVALUE, true);
 	upvalue->location = slot;
 	upvalue->closed = NIL_VAL;
 	upvalue->next = NULL;
@@ -243,7 +243,7 @@ ObjectUpvalue *upvalue_new(Value *slot) {
 }
 
 
-Value list_get(ObjectList *list, size_t index) {
+Value list_get(List *list, size_t index) {
 	if (index >= list->values.count) {
 		return NIL_VAL;
 	}
@@ -251,11 +251,11 @@ Value list_get(ObjectList *list, size_t index) {
 	return list->values.values[index];
 }
 
-size_t list_length(ObjectList *list) {
+size_t list_length(List *list) {
 	return list->values.count;
 }
 
-void list_set(ObjectList *list, size_t index, Value value) {
+void list_set(List *list, size_t index, Value value) {
 	if (index >= list->values.count) {
 		// FIXME: either error or grow table and fill with nils
 		return;
@@ -263,7 +263,7 @@ void list_set(ObjectList *list, size_t index, Value value) {
 	list->values.values[index] = value;
 }
 
-Value list_remove(ObjectList *list, size_t index) {
+Value list_remove(List *list, size_t index) {
 	if (index >= list->values.count) {
 		return NIL_VAL;
 	}
@@ -275,11 +275,11 @@ Value list_remove(ObjectList *list, size_t index) {
 	return value;
 }
 
-void list_push(ObjectList *list, Value value) {
+void list_push(List *list, Value value) {
 	value_array_write(&list->values, value);
 }
 
-Value list_pop(ObjectList *list) {
+Value list_pop(List *list) {
 	if (list->values.count == 0) {
 		return NIL_VAL;
 	}
@@ -289,34 +289,34 @@ Value list_pop(ObjectList *list) {
 	return value;
 }
 
-ObjectList *list_new() {
-	ObjectList *list = ALLOCATE_OBJ(ObjectList, OBJ_LIST, true);
+List *list_new() {
+	List *list = ALLOCATE_OBJ(List, OBJ_LIST, true);
 	value_array_init(&list->values);
 	return list;
 }
 
-ObjectDict *dict_new() {
-	ObjectDict *dict = ALLOCATE_OBJ(ObjectDict, OBJ_DICT, true);
+Dictionary *dict_new() {
+	Dictionary *dict = ALLOCATE_OBJ(Dictionary, OBJ_DICT, true);
 	table_init(&dict->table);
 	return dict;
 }
 
-void dict_set(ObjectDict *dict, ObjectString *key, Value value) {
+void dict_set(Dictionary *dict, String *key, Value value) {
 	table_set(&dict->table, key, value);
 }
 
-Value dict_get(ObjectDict *dict, ObjectString *key) {
+Value dict_get(Dictionary *dict, String *key) {
 	Value value = NIL_VAL;
 	table_get(&dict->table, key, &value);
 	return value;
 }
 
-Value dict_remove(ObjectDict *dict, ObjectString *key) {
+Value dict_remove(Dictionary *dict, String *key) {
 	Value value = NIL_VAL;
 	table_get_and_delete(&dict->table, key, &value);
 	return value;
 }
 
-void dict_clear(ObjectDict *dict) {
+void dict_clear(Dictionary *dict) {
 	dict->table.count = 0;
 }

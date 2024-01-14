@@ -4,7 +4,7 @@
 #include "chunk.h"
 #include "object.h"
 
-ObjectFunction *compile(char *source);
+Function *compile(char *source);
 void compiler_mark_roots();
 
 #endif

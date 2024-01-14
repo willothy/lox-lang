@@ -45,43 +45,43 @@ static void free_object(Object *obj) {
 
 	switch (object_type(obj)) {
 	case OBJ_STRING: {
-		ObjectString *str = (ObjectString *)obj;
+		String *str = (String *)obj;
 		if (object_is_owned(obj)) {
 			FREE_ARRAY(char, str->chars, str->length + 1);
 		}
-		FREE(ObjectString, obj);
+		FREE(String, obj);
 		break;
 	}
 	case OBJ_CLOSURE: {
-		ObjectClosure *closure = (ObjectClosure*)obj;
-		FREE_ARRAY(ObjectUpvalue*, closure->upvalues, closure->upvalue_count);
-		FREE(ObjectClosure, obj);
+		Closure *closure = (Closure*)obj;
+		FREE_ARRAY(Upvalue*, closure->upvalues, closure->upvalue_count);
+		FREE(Closure, obj);
 		break;
 	}
 	case OBJ_FUNCTION: {
-		ObjectFunction *fn = (ObjectFunction *)obj;
+		Function *fn = (Function *)obj;
 		chunk_free(&fn->chunk);
-		FREE(ObjectFunction, obj);
+		FREE(Function, obj);
 		break;
 	}
 	case OBJ_UPVALUE: {
-		FREE(ObjectUpvalue,obj);
+		FREE(Upvalue,obj);
 		break;
 	}
 	case OBJ_NATIVE: {
-		FREE(ObjectNative, obj);
+		FREE(NativeFunction, obj);
 		break;
 	}
 	case OBJ_LIST: {
-		ObjectList *list = (ObjectList *)obj;
+		List *list = (List *)obj;
 		value_array_free(&list->values);
-		FREE(ObjectList, obj);
+		FREE(List, obj);
 		break;
 	}
 	case OBJ_DICT: {
-		ObjectDict *dict = (ObjectDict *)obj;
+		Dictionary *dict = (Dictionary *)obj;
 		table_free(&dict->table);
-		FREE(ObjectDict, obj);
+		FREE(Dictionary, obj);
 		break;
 	}
 	}
@@ -129,7 +129,7 @@ static void mark_roots() {
 		mark_object((Object *)vm.frames[i].closure);
 	}
 
-	for (ObjectUpvalue *upvalue = vm.open_upvalues; upvalue!= NULL; upvalue = upvalue->next) {
+	for (Upvalue *upvalue = vm.open_upvalues; upvalue!= NULL; upvalue = upvalue->next) {
 		mark_object((Object *)upvalue);
 	}
 
@@ -152,13 +152,13 @@ static void blacken_object(Object *obj) {
 
 	switch (object_type(obj)) {
 	case OBJ_FUNCTION: {
-		ObjectFunction *fn = (ObjectFunction *)obj;
+		Function *fn = (Function *)obj;
 		mark_object((Object *)fn->name);
 		mark_array(&fn->chunk.constants);
 		break;
 	}
 	case OBJ_CLOSURE: {
-		ObjectClosure *closure = (ObjectClosure *)obj;
+		Closure *closure = (Closure *)obj;
 		mark_object((Object *)closure->function);
 		for (size_t i = 0; i < closure->upvalue_count; i++) {
 			mark_object((Object *)closure->upvalues[i]);
@@ -166,13 +166,13 @@ static void blacken_object(Object *obj) {
 		break;
 	}
 	case OBJ_UPVALUE:
-		mark_value(((ObjectUpvalue *)obj)->closed);
+		mark_value(((Upvalue *)obj)->closed);
 		break;
 	case OBJ_LIST:
-		mark_array(&((ObjectList *)obj)->values);
+		mark_array(&((List *)obj)->values);
 		break;
 	case OBJ_DICT:
-		table_mark(&((ObjectDict *)obj)->table);
+		table_mark(&((Dictionary *)obj)->table);
 		break;
 	case OBJ_STRING:
 	case OBJ_NATIVE:

@@ -20,7 +20,7 @@ void table_free(Table *table) {
 	table_init(table);
 }
 
-static Entry *table_find_entry(Entry *entries, size_t capacity, ObjectString *key) {
+static Entry *table_find_entry(Entry *entries, size_t capacity, String *key) {
 	uint32_t index = key->hash & (capacity - 1);
 	Entry *tombstone = NULL;
 
@@ -74,7 +74,7 @@ static void adjust_capacity(Table *table, size_t capacity) {
 	table->capacity = capacity;
 }
 
-bool table_set(Table *table, ObjectString *key, Value value) {
+bool table_set(Table *table, String *key, Value value) {
 	if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
 		size_t capacity = GROW_CAPACITY(table->capacity);
 		adjust_capacity(table, capacity);
@@ -100,7 +100,7 @@ void table_add_all(Table *from, Table *to) {
 	}
 }
 
-bool table_get(Table *table, ObjectString *key, Value *value) {
+bool table_get(Table *table, String *key, Value *value) {
 	if (table->count == 0) {
 		return false;
 	}
@@ -112,7 +112,7 @@ bool table_get(Table *table, ObjectString *key, Value *value) {
 	return true;
 }
 
-bool table_delete(Table *table, ObjectString *key) {
+bool table_delete(Table *table, String *key) {
 	if (table->count == 0) {
 		return false;
 	}
@@ -125,7 +125,7 @@ bool table_delete(Table *table, ObjectString *key) {
 	return true;
 }
 
-bool table_get_and_delete(Table *table, ObjectString *key, Value *value) {
+bool table_get_and_delete(Table *table, String *key, Value *value) {
 	if (table->count == 0) {
 		return false;
 	}
@@ -139,7 +139,7 @@ bool table_get_and_delete(Table *table, ObjectString *key, Value *value) {
 	return true;
 }
 
-ObjectString* table_find_string(Table *table, const char *chars, size_t length, uint32_t hash) {
+String* table_find_string(Table *table, const char *chars, size_t length, uint32_t hash) {
 	if (table->count == 0) {
 		return NULL;
 	}

@@ -97,7 +97,7 @@ static Token error_token(const char* format, ...) {
 	size_t len = vsnprintf(message, 1024, format, args);
 	va_end(args);
 
-	ObjectString *msg = copy_string(message, len);
+	String *msg = copy_string(message, len);
 
 	Token token;
 	token.type = TOKEN_ERROR;

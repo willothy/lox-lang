@@ -53,7 +53,7 @@ typedef struct {
 typedef struct {
 	uint32_t index;
 	bool is_local;
-} Upvalue;
+} UpvalueMeta;
 
 typedef enum {
 	FN_TYPE_NAMED,
@@ -64,13 +64,13 @@ typedef enum {
 typedef struct Compiler {
 	struct Compiler *enclosing;
 
-	ObjectFunction *function;
+	Function *function;
 	FunctionType type;
 
 	Local locals[UINT8_COUNT];
 	uint32_t local_count;
 
-	Upvalue upvalues[UINT8_COUNT];
+	UpvalueMeta upvalues[UINT8_COUNT];
 	uint32_t upvalue_count;
 
 	uint32_t scope_depth;
@@ -288,9 +288,9 @@ static void compiler_init(Compiler *compiler, FunctionType type) {
 	local->name.length = 0;
 }
 
-static ObjectFunction *end_compilation() {
+static Function *end_compilation() {
 	emit_return();
-	ObjectFunction *function = current->function;
+	Function *function = current->function;
 
 	#ifdef DEBUG_PRINT_CODE
 	if (!parser.had_error) {
@@ -400,7 +400,7 @@ static void synchronize() {
 
 static uint32_t identifier_constant(Token *name) {
 	Chunk *chunk = current_chunk();
-	ObjectString *ident = ref_string((char*)name->start, name->length);
+	String *ident = ref_string((char*)name->start, name->length);
 
 	// slower at compile time, but saves memory by deduplicating constant idents
 	for (uint32_t i = 0; i < chunk->constants.count; i++) {
@@ -536,7 +536,7 @@ static void function(FunctionType type) {
 	consume(TOKEN_LEFT_BRACE, "Expect '{' before function body.");
 	block();
 
-	ObjectFunction *function = end_compilation();
+	Function *function = end_compilation();
 	uint32_t index = chunk_add_constant(current_chunk(), OBJ_VAL(function));
 	if (index > UINT8_MAX) {
 		emit_bytes(OP_CLOSURE_LONG, index & 0xff);
@@ -751,7 +751,7 @@ static void literal(bool can_assign) {
 }
 
 static void string(bool can_assign) {
-	ObjectString *str = ref_string((char*)prev_token().start + 1, prev_token().length-2);
+	String *str = ref_string((char*)prev_token().start + 1, prev_token().length-2);
 	emit_constant(OBJ_VAL(str));
 }
 
@@ -764,7 +764,7 @@ static uint8_t add_upvalue(Compiler *compiler, uint32_t index, bool is_local) {
 	uint32_t upvalue_count = compiler->function->upvalue_count;
 
 	for (uint8_t i = 0; i < upvalue_count; i++) {
-		Upvalue *upvalue = &compiler->upvalues[i];
+		UpvalueMeta *upvalue = &compiler->upvalues[i];
 		if (upvalue->index == index && upvalue->is_local == is_local) {
 			return i;
 		}
@@ -924,7 +924,7 @@ static uint32_t dict_entry_list() {
 			Token *prev = ref_prev_token();
 			uint32_t key = identifier_constant(prev);
 
-			ObjectString *str = copy_string(prev->start, prev->length);
+			String *str = copy_string(prev->start, prev->length);
 			emit_constant(OBJ_VAL(str));
 
 			consume(TOKEN_COLON, "Expect ':' after dict key.");
@@ -1051,7 +1051,7 @@ static void binary(bool can_assign) {
 }
 
 
-ObjectFunction* compile(char *src) {
+Function* compile(char *src) {
 	scanner_init(src);
 
 	parser_init();
@@ -1063,7 +1063,7 @@ ObjectFunction* compile(char *src) {
 		declaration();
 	}
 
-	ObjectFunction *function = end_compilation();
+	Function *function = end_compilation();
 
 	return parser.had_error ? NULL : function;
 }

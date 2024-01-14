@@ -36,7 +36,7 @@ static Value print_native(uint8_t argc, Value *args) {
 
 static Value type_native(uint8_t argc, Value *args) {
 	const ConstStr type = value_type_name(args[0]);
-	ObjectString *string = copy_string(type.chars, type.length);
+	String *string = copy_string(type.chars, type.length);
 
 	return OBJ_VAL(string);
 }
@@ -52,7 +52,7 @@ static Value is_type_native(uint8_t argc, Value *args) {
 	}
 #endif
 
-	const ObjectString *string = AS_STRING(expected);
+	const String *string = AS_STRING(expected);
 	// "nil" is the shortest type name
 	if (string->length < 3) {
 		return BOOL_VAL(false);
@@ -108,7 +108,7 @@ static void reset_stack() {
 	vm.frame_count = 0;
 }
 
-static void define_native(const char *name, NativeFn function, uint8_t arity) {
+static void define_native(const char *name, NativeFnPtr function, uint8_t arity) {
 	vm_push(OBJ_VAL(copy_string(name, strlen(name))));
 	vm_push(OBJ_VAL(native_new(function, arity)));
 	table_set(&vm.globals, AS_STRING(vm.stack[0]), vm.stack[1]);
@@ -191,7 +191,7 @@ static void runtime_error(const char *format,...) {
 	// Print the stack trace
 	for (size_t i = 0; i < vm.frame_count; i++) {
 		CallFrame *frame = &vm.frames[i];
-		ObjectFunction *function = frame->closure->function;
+		Function *function = frame->closure->function;
 		size_t inst = frame->ip - function->chunk.code - 1;
 		Linenr line = line_info_get(&function->chunk.lines, inst);
 		fprintf(stderr, "[line %zu] in ", line);
@@ -217,7 +217,7 @@ static void runtime_error_value(Value value, const char *format, ...) {
 	// Print the stack trace
 	for (size_t i = 0; i < vm.frame_count; i++) {
 		CallFrame *frame = &vm.frames[i];
-		ObjectFunction *function = frame->closure->function;
+		Function *function = frame->closure->function;
 		size_t inst = frame->ip - function->chunk.code - 1;
 		Linenr line = line_info_get(&function->chunk.lines, inst);
 		fprintf(stderr, "[line %zu] in ", line);
@@ -232,8 +232,8 @@ static void runtime_error_value(Value value, const char *format, ...) {
 }
 
 static void concatonate() {
-	ObjectString *a = AS_STRING(vm_peek(0));
-	ObjectString *b = AS_STRING(vm_peek(1));
+	String *a = AS_STRING(vm_peek(0));
+	String *b = AS_STRING(vm_peek(1));
 
 	size_t length = a->length + b->length;
 	char *chars = ALLOCATE(char, length + 1);
@@ -241,7 +241,7 @@ static void concatonate() {
 	memcpy(chars + a->length, b->chars, b->length);
 	chars[length] = '\0';
 
-	ObjectString *result = take_string(chars, length);
+	String *result = take_string(chars, length);
 
 	vm_pop();
 	vm_pop();
@@ -249,7 +249,7 @@ static void concatonate() {
 	vm_push(OBJ_VAL(result));
 }
 
-static bool call(ObjectClosure *closure, uint8_t argc) {
+static bool call(Closure *closure, uint8_t argc) {
 #ifdef DYNAMIC_TYPE_CHECKING
 	if (argc != closure->function->arity) {
 		runtime_error("Expected %d arguments but got %d.", closure->function->arity, argc);
@@ -279,7 +279,7 @@ static bool call_value(Value callee, uint8_t argc) {
 		case OBJ_CLOSURE:
 			return call(AS_CLOSURE(callee), argc);
 		case OBJ_NATIVE: {
-			ObjectNative *native = AS_NATIVE(callee);
+			NativeFunction *native = AS_NATIVE(callee);
 #ifdef NATIVE_ARITY_CHECKING
 			if (argc != native->arity) {
 				runtime_error("Expected %d arguments but got %d.", native->arity, argc);
@@ -303,10 +303,10 @@ static bool call_value(Value callee, uint8_t argc) {
 	return false;
 }
 
-static ObjectUpvalue* upvalue_capture(Value *local) {
-	ObjectUpvalue *prev_upvalue = NULL;
+static Upvalue* upvalue_capture(Value *local) {
+	Upvalue *prev_upvalue = NULL;
 
-	ObjectUpvalue *upvalue = vm.open_upvalues;
+	Upvalue *upvalue = vm.open_upvalues;
 	while (upvalue != NULL && upvalue->location > local) {
 		prev_upvalue = upvalue;
 		upvalue = upvalue->next;
@@ -316,7 +316,7 @@ static ObjectUpvalue* upvalue_capture(Value *local) {
 		return upvalue;
 	}
 
-	ObjectUpvalue *created = upvalue_new(local);
+	Upvalue *created = upvalue_new(local);
 	created->next = upvalue;
 
 	if (prev_upvalue == NULL) {
@@ -330,7 +330,7 @@ static ObjectUpvalue* upvalue_capture(Value *local) {
 
 static void close_upvalues(Value *last) {
 	while (vm.open_upvalues != NULL && vm.open_upvalues->location >= last) {
-		ObjectUpvalue *upvalue = vm.open_upvalues;
+		Upvalue *upvalue = vm.open_upvalues;
 		upvalue->closed = *upvalue->location;
 		upvalue->location = &upvalue->closed;
 		vm.open_upvalues = upvalue->next;
@@ -569,7 +569,7 @@ static InterpretResult run() {
 			break;
 		}
 		case OP_LIST: {
-			ObjectList *list = list_new();
+			List *list = list_new();
 			uint8_t count = READ_BYTE();
 			while (count--) {
 				list_push(list, vm_pop());
@@ -578,7 +578,7 @@ static InterpretResult run() {
 			break;
 		}
 		case OP_LIST_LONG: {
-			ObjectList *list = list_new();
+			List *list = list_new();
 			uint32_t count = READ_BYTE();
 			count |= READ_BYTE() << 8;
 			count |= READ_BYTE() << 16;
@@ -589,7 +589,7 @@ static InterpretResult run() {
 			break;
 		}
 		case OP_DICT: {
-			ObjectDict *dict = dict_new();
+			Dictionary *dict = dict_new();
 			uint8_t count = READ_BYTE();
 			while (count--) {
 				Value value = vm_pop();
@@ -600,7 +600,7 @@ static InterpretResult run() {
 			break;
 		}
 		case OP_DICT_LONG: {
-			ObjectDict *dict = dict_new();
+			Dictionary *dict = dict_new();
 			uint32_t count = READ_BYTE();
 			count |= READ_BYTE() << 8;
 			count |= READ_BYTE() << 16;
@@ -613,8 +613,8 @@ static InterpretResult run() {
 			break;
 		}
 		case OP_CLOSURE: {
-			ObjectFunction *function = AS_FUNCTION(READ_CONSTANT());
-			ObjectClosure *closure = closure_new(function);
+			Function *function = AS_FUNCTION(READ_CONSTANT());
+			Closure *closure = closure_new(function);
 			vm_push(OBJ_VAL(closure));
 			for (uint8_t i = 0; i < closure->function->upvalue_count; i++) {
 				uint8_t is_local = READ_BYTE();
@@ -628,8 +628,8 @@ static InterpretResult run() {
 			break;
 		}
 		case OP_CLOSURE_LONG: {
-			ObjectFunction *function = AS_FUNCTION(READ_CONSTANT_LONG());
-			ObjectClosure *closure = closure_new(function);
+			Function *function = AS_FUNCTION(READ_CONSTANT_LONG());
+			Closure *closure = closure_new(function);
 
 			vm_push(OBJ_VAL(closure));
 			for (uint8_t i = 0; i < closure->function->upvalue_count; i++) {
@@ -676,19 +676,19 @@ static InterpretResult run() {
 			break;
 		}
 		case OP_DEFINE_GLOBAL: {
-			ObjectString *name = AS_STRING(READ_CONSTANT());
+			String *name = AS_STRING(READ_CONSTANT());
 			table_set(&vm.globals, name, vm_peek(0));
 			vm_pop();
 			break;
 		}
 		case OP_DEFINE_GLOBAL_LONG: {
-			ObjectString *name = AS_STRING(READ_CONSTANT_LONG());
+			String *name = AS_STRING(READ_CONSTANT_LONG());
 			table_set(&vm.globals, name, vm_peek(0));
 			vm_pop();
 			break;
 		}
 		case OP_SET_GLOBAL: {
-			ObjectString *name = AS_STRING(READ_CONSTANT());
+			String *name = AS_STRING(READ_CONSTANT());
 			if (table_set(&vm.globals, name, vm_peek(0))) {
 				table_delete(&vm.globals, name);
 				// TODO: what should I do here?
@@ -698,7 +698,7 @@ static InterpretResult run() {
 			break;
 		}
 		case OP_SET_GLOBAL_LONG: {
-			ObjectString *name = AS_STRING(READ_CONSTANT_LONG());
+			String *name = AS_STRING(READ_CONSTANT_LONG());
 			if (table_set(&vm.globals, name, vm_peek(0))) {
 				table_delete(&vm.globals, name);
 				// TODO: same as above
@@ -708,7 +708,7 @@ static InterpretResult run() {
 			break;
 		}
 		case OP_GET_GLOBAL: {
-			ObjectString *name = AS_STRING(READ_CONSTANT());
+			String *name = AS_STRING(READ_CONSTANT());
 			Value value;
 			if (!table_get(&vm.globals, name, &value)) {
 				// This is the default behavior. I don't it, so my version of lox will
@@ -725,7 +725,7 @@ static InterpretResult run() {
 		}
 		// TODO: figure out how to get rid of this duplication
 		case OP_GET_GLOBAL_LONG: {
-			ObjectString *name = AS_STRING(READ_CONSTANT_LONG());
+			String *name = AS_STRING(READ_CONSTANT_LONG());
 			Value value;
 			if (!table_get(&vm.globals, name, &value)) {
 				// Same as above
@@ -783,9 +783,9 @@ static InterpretResult run() {
 	#undef BINARY_OP
 }
 
-InterpretResult vm_interpret(ObjectFunction *function) {
+InterpretResult vm_interpret(Function *function) {
 	vm_push(OBJ_VAL(function));
-	ObjectClosure *closure = closure_new(function);
+	Closure *closure = closure_new(function);
 	vm_pop();
 	vm_push(OBJ_VAL(closure));
 	call(closure, 0);

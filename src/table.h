@@ -5,7 +5,7 @@
 #include "value.h"
 
 typedef struct {
-  ObjectString *key;
+  String *key;
   Value value;
 } Entry;
 
@@ -18,12 +18,12 @@ typedef struct {
 void table_init(Table *table);
 void table_free(Table *table);
 void table_add_all(Table *from, Table *to);
-bool table_set(Table *table, ObjectString *key, Value value);
-bool table_get(Table *table, ObjectString *key, Value *value);
-bool table_delete(Table *table, ObjectString *key);
-bool table_get_and_delete(Table *table, ObjectString *key, Value *value);
+bool table_set(Table *table, String *key, Value value);
+bool table_get(Table *table, String *key, Value *value);
+bool table_delete(Table *table, String *key);
+bool table_get_and_delete(Table *table, String *key, Value *value);
 void table_remove_white(Table *table);
-ObjectString *table_find_string(Table *table, const char *chars, size_t length,
+String *table_find_string(Table *table, const char *chars, size_t length,
                                 uint32_t hash);
 
 void table_print(Table *table, char *name);
