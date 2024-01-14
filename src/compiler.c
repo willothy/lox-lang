@@ -427,31 +427,29 @@ static void add_local(Token name) {
 }
 
 static void mark_initialized() {
-	// if (current->scope_depth == 0) {
-	// 	return;
-	// }
+	if (current->scope_depth == 0) {
+		return;
+	}
 	current->locals[current->local_count - 1].depth = current->scope_depth;
 }
 
 static void define_variable(uint32_t global) {
-	mark_initialized();
-	return;
-	// if (current->scope_depth > 0) {
-	// 	mark_initialized();
-	// 	return;
-	// };
-	//
-	// if (global > UINT8_MAX) {
-	// 	// TODO: is this the correct order?
-	// 	emit_bytes(OP_DEFINE_GLOBAL_LONG, global & 0xff);
-	// 	emit_bytes( (global >> 8) & 0xff, (global >> 16) & 0xff);
-	// } else {
-	// 	emit_bytes(OP_DEFINE_GLOBAL, global);
-	// }
+	if (current->scope_depth > 0) {
+		mark_initialized();
+		return;
+	};
+
+	if (global > UINT8_MAX) {
+		// TODO: is this the correct order?
+		emit_bytes(OP_DEFINE_GLOBAL_LONG, global & 0xff);
+		emit_bytes( (global >> 8) & 0xff, (global >> 16) & 0xff);
+	} else {
+		emit_bytes(OP_DEFINE_GLOBAL, global);
+	}
 }
 
 static void declare_variable() {
-	// if (current->scope_depth == 0) return;
+	if (current->scope_depth == 0) return;
 
 #ifndef ALLOW_SHADOWING
 	for (int i = current->local_count - 1; i >= 0; i--) {
@@ -596,6 +594,8 @@ static void while_statement() {
 	emit_byte(OP_POP);
 }
 
+static void named_variable(Token name, bool can_assign);
+
 // TODO: Better numeric for syntax, for in syntax with ranges.
 // TODO: Support break and continue.
 //        - Support labeled blocks.
@@ -607,6 +607,15 @@ static void for_statement() {
 	if (match(TOKEN_SEMICOLON)) {
 		// No initializer.
 	} else if (match(TOKEN_VAR)) {
+		// if (!match(TOKEN_IDENTIFIER)) {
+		// 	error("Expect variable name after 'var'.");
+		// 	return;
+		// }
+		// add_local(prev_token());
+		// mark_initialized();
+		// named_variable(prev_token(), true);
+		// consume(TOKEN_SEMICOLON, "Expect ';' after variable declaration.");
+		//   emit_byte(OP_POP);
 		var_declaration();
 	} else {
 		expression_statement();
@@ -640,11 +649,7 @@ static void for_statement() {
 
 	consume(TOKEN_LEFT_BRACE, "Expect '{' after for clauses.");
 
-	begin_scope();
 	block();
-	end_scope();
-	// statement();
-	// block();
 
 	emit_loop(loop_start);
 

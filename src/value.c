@@ -144,6 +144,8 @@ const ConstStr value_type_name(Value value) {
 			return CONST_STR(list);
 		case OBJ_DICT:
 			return CONST_STR(dict);
+		case OBJ_COROUTINE:
+			return CONST_STR(coroutine);
 		}
 	}
 }

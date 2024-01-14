@@ -40,7 +40,7 @@ static void free_object(Object *obj) {
 		return;
 	}
 #ifdef DEBUG_LOG_GC
-	printf("%p free type %s\n", (void *)obj, object_type_name(obj->type));
+	printf("%p free type %s\n", (void *)obj, object_type_name(object_type(obj)));
 #endif
 
 	switch (object_type(obj)) {
@@ -50,6 +50,13 @@ static void free_object(Object *obj) {
 			FREE_ARRAY(char, str->chars, str->length + 1);
 		}
 		FREE(String, obj);
+		break;
+	}
+	case OBJ_COROUTINE: {
+		Coroutine *coro = (Coroutine *)obj;
+		FREE_ARRAY(Value, coro->stack, coro->stack_size);
+		FREE_ARRAY(CallFrame, coro->frames, coro->frame_capacity);
+		FREE(Coroutine, obj);
 		break;
 	}
 	case OBJ_CLOSURE: {
@@ -121,13 +128,7 @@ void mark_value(Value value) {
 }
 
 static void mark_roots() {
-	for (Value *slot = vm.stack; slot < vm.stack_top; slot++) {
-		mark_value(*slot);
-	}
-
-	for (size_t i = 0; i < vm.frame_count; i++) {
-		mark_object((Object *)vm.frames[i].closure);
-	}
+	mark_object((Object *)vm.running);
 
 	for (Upvalue *upvalue = vm.open_upvalues; upvalue!= NULL; upvalue = upvalue->next) {
 		mark_object((Object *)upvalue);
@@ -162,6 +163,19 @@ static void blacken_object(Object *obj) {
 		mark_object((Object *)closure->function);
 		for (size_t i = 0; i < closure->upvalue_count; i++) {
 			mark_object((Object *)closure->upvalues[i]);
+		}
+		break;
+	}
+	case OBJ_COROUTINE: {
+		Coroutine *coroutine = (Coroutine *)obj;
+		if (coroutine->parent != NULL) {
+			mark_object((Object *)coroutine->parent);
+		}
+		for (size_t i = 0; i < coroutine->frame_count; i++) {
+			mark_object((Object *)coroutine->frames[i].closure);
+		}
+		for (Value *slot = coroutine->stack; slot < coroutine->stack_top; slot++) {
+			mark_value(*slot);
 		}
 		break;
 	}

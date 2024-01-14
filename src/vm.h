@@ -6,15 +6,6 @@
 #include "table.h"
 #include "value.h"
 
-#define FRAMES_MAX 64
-#define STACK_INITIAL (FRAMES_MAX * UINT8_COUNT)
-
-typedef struct {
-  Closure *closure;
-  uint8_t *ip;
-  Value *slots;
-} CallFrame;
-
 typedef enum {
   INTERPRET_OK,
   INTERPRET_COMPILE_ERROR,
@@ -22,14 +13,12 @@ typedef enum {
 } InterpretResult;
 
 typedef struct {
-  // Call stack
-  CallFrame frames[FRAMES_MAX];
-  size_t frame_count;
-
-  // Stack
-  Value *stack_top;
-  Value *stack;
-  size_t stack_size;
+  // The active coroutine.
+  Coroutine *running;
+  // The toplevel coroutine. This should always be the first
+  // coroutine in the GC linked list, and should always be accessible
+  // from a coroutine object by traversing its ancestors.
+  Coroutine *main;
 
   // GC
   size_t gray_count;

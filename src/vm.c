@@ -103,27 +103,21 @@ static Value is_type_native(uint8_t argc, Value *args) {
 	return FALSE_VAL;
 }
 
-static void reset_stack() {
-	vm.stack_top = vm.stack;
-	vm.frame_count = 0;
+static void vm_reset() {
+	vm.running = vm.main;
+	coroutine_reset(vm.main);
 }
 
 static void define_native(const char *name, NativeFnPtr function, uint8_t arity) {
+	Coroutine *co = vm.running;
 	vm_push(OBJ_VAL(copy_string(name, strlen(name))));
 	vm_push(OBJ_VAL(native_new(function, arity)));
-	table_set(&vm.globals, AS_STRING(vm.stack[0]), vm.stack[1]);
+	table_set(&vm.globals, AS_STRING(vm.running->stack[0]), vm.running->stack[1]);
 	vm_pop();
 	vm_pop();
 }
 
 char *vm_init() {
-	vm.stack = GROW_ARRAY(Value, vm.stack, 0, STACK_INITIAL);
-	if (!vm.stack) {
-		return "Could not allocate memory for stack";
-	}
-	vm.stack_size = STACK_INITIAL;
-	reset_stack();
-
 	vm.objects = NULL;
 	vm.open_upvalues = NULL;
 
@@ -135,6 +129,11 @@ char *vm_init() {
 	vm.gray_count = 0;
 	vm.gray_capacity = 0;
 	vm.gray_stack = NULL;
+
+	vm.main = NULL;
+	vm.running = NULL;
+	vm.main = coroutine_new(NULL);
+	vm.running = vm.main;
 
 	table_init(&vm.strings);
 	table_init(&vm.globals);
@@ -154,31 +153,21 @@ void vm_free() {
 }
 
 void vm_push(Value value) {
-	if (vm.stack_top - vm.stack == vm.stack_size) {
-		size_t top = (size_t)vm.stack_top - (size_t)vm.stack;
-		size_t old_size = vm.stack_size;
-		size_t new_size = GROW_CAPACITY(old_size);
-
-		#ifdef DEBUG_TRACE_EXECUTION
-		printf("stack overflow at %zu, growing to %zu\n", old_size, new_size);
-		#endif
-
-		vm.stack = GROW_ARRAY(Value, vm.stack, old_size, new_size);
-		vm.stack_size = new_size;
-		// Update stack_top in case the location of the stack array changed due to realloc
-		vm.stack_top = (Value*)((size_t)vm.stack + ((size_t)top) * sizeof(Value));
+	if (!vm.running) {
+		return;
 	}
-	*vm.stack_top = value;
-	vm.stack_top++;
+	coroutine_push(vm.running, value);
 }
 
 Value vm_pop() {
-	vm.stack_top--;
-	return *vm.stack_top;
+	if (!vm.running) {
+		return NIL_VAL;
+	}
+	return coroutine_pop(vm.running);
 }
 
 Value vm_peek(size_t distance) {
-	return vm.stack_top[-1 - distance];
+	return coroutine_peek(vm.running, distance);
 }
 
 static void runtime_error(const char *format,...) {
@@ -188,21 +177,23 @@ static void runtime_error(const char *format,...) {
 	va_end(args);
 	fputs("\n", stderr);
 
-	// Print the stack trace
-	for (size_t i = 0; i < vm.frame_count; i++) {
-		CallFrame *frame = &vm.frames[i];
-		Function *function = frame->closure->function;
-		size_t inst = frame->ip - function->chunk.code - 1;
-		Linenr line = line_info_get(&function->chunk.lines, inst);
-		fprintf(stderr, "[line %zu] in ", line);
-		if (function->name == NULL) {
-			fprintf(stderr, "script\n");
-		} else {
-			fprintf(stderr, "%s()\n", function->name->chars);
-		}
-	}
+	// TODO: stack trace for coroutines
 
-	reset_stack();
+	// Print the stack trace
+	// for (size_t i = 0; i < vm.frame_count; i++) {
+	// 	CallFrame *frame = &vm.frames[i];
+	// 	Function *function = frame->closure->function;
+	// 	size_t inst = frame->ip - function->chunk.code - 1;
+	// 	Linenr line = line_info_get(&function->chunk.lines, inst);
+	// 	fprintf(stderr, "[line %zu] in ", line);
+	// 	if (function->name == NULL) {
+	// 		fprintf(stderr, "script\n");
+	// 	} else {
+	// 		fprintf(stderr, "%s()\n", function->name->chars);
+	// 	}
+	// }
+
+	vm_reset();
 }
 
 static void runtime_error_value(Value value, const char *format, ...) {
@@ -214,21 +205,23 @@ static void runtime_error_value(Value value, const char *format, ...) {
 	printf("%.*s\n", (int)type.length, type.chars);
 	// value_println(value);
 
-	// Print the stack trace
-	for (size_t i = 0; i < vm.frame_count; i++) {
-		CallFrame *frame = &vm.frames[i];
-		Function *function = frame->closure->function;
-		size_t inst = frame->ip - function->chunk.code - 1;
-		Linenr line = line_info_get(&function->chunk.lines, inst);
-		fprintf(stderr, "[line %zu] in ", line);
-		if (function->name == NULL) {
-			fprintf(stderr, "script\n");
-		} else {
-			fprintf(stderr, "%s()\n", function->name->chars);
-		}
-	}
+	// TODO: stack trace for coroutines
 
-	reset_stack();
+	// Print the stack trace
+	// for (size_t i = 0; i < vm.frame_count; i++) {
+	// 	CallFrame *frame = &vm.frames[i];
+	// 	Function *function = frame->closure->function;
+	// 	size_t inst = frame->ip - function->chunk.code - 1;
+	// 	Linenr line = line_info_get(&function->chunk.lines, inst);
+	// 	fprintf(stderr, "[line %zu] in ", line);
+	// 	if (function->name == NULL) {
+	// 		fprintf(stderr, "script\n");
+	// 	} else {
+	// 		fprintf(stderr, "%s()\n", function->name->chars);
+	// 	}
+	// }
+
+	vm_reset();
 }
 
 static void concatonate() {
@@ -256,16 +249,24 @@ static bool call(Closure *closure, uint8_t argc) {
 		return false;
 	}
 #endif
+	Coroutine *co = vm.running;
 
-	if (vm.frame_count == FRAMES_MAX) {
+	if (co->frame_count == FRAMES_MAX) {
 		runtime_error("Stack overflow.");
 		return false;
+	} else if (co->frame_count + 1 >= co->frame_capacity) {
+		size_t new_capacity = GROW_CAPACITY(co->frame_capacity);
+		if (new_capacity > FRAMES_MAX) {
+			new_capacity = FRAMES_MAX;
+		}
+		co->frames = GROW_ARRAY(CallFrame, co->frames, co->frame_capacity, new_capacity);
+		co->frame_capacity = new_capacity;
 	}
 
-	CallFrame *frame = &vm.frames[vm.frame_count++];
+	CallFrame *frame = &co->frames[co->frame_count++];
 	frame->closure = closure;
 	frame->ip = closure->function->chunk.code;
-	frame->slots = vm.stack_top - argc - 1; // -1 to account for reserved stack slot 0
+	frame->slots = co->stack_top - argc - 1; // -1 to account for reserved stack slot 0
 	return true;
 }
 
@@ -287,8 +288,8 @@ static bool call_value(Value callee, uint8_t argc) {
 			}
 #endif
 
-			Value result = native->function(argc, vm.stack_top - argc);
-			vm.stack_top -= argc + 1;
+			Value result = native->function(argc, vm.running->stack_top - argc);
+			vm.running->stack_top -= argc + 1;
 			vm_push(result);
 			return true;
 		}
@@ -296,6 +297,7 @@ static bool call_value(Value callee, uint8_t argc) {
 		case OBJ_UPVALUE:
 		case OBJ_DICT:
 		case OBJ_STRING:
+		case OBJ_COROUTINE: // TODO how should coroutines be resumed?
 			break;
 		}
 	}
@@ -403,7 +405,7 @@ static bool get_field(Value container, Value key) {
 static InterpretResult run() {
 	// TODO: Implement register ip optimization
 	// register uint8_t *ip = vm.chunk->code;
-	CallFrame *frame = &vm.frames[vm.frame_count - 1];
+	CallFrame *frame = &vm.running->frames[vm.running->frame_count - 1];
 
   #define READ_BYTE() (*frame->ip++)
 	#define READ_WORD() (frame->ip += 2, (uint16_t)((frame->ip[-2] << 8) | frame->ip[-1]))
@@ -439,7 +441,7 @@ static InterpretResult run() {
 	for (;;) {
     #ifdef DEBUG_TRACE_EXECUTION
 		printf("stack:  ");
-		for (Value* slot = vm.stack; slot < vm.stack_top; slot++) {
+		for (Value* slot = vm.running->stack; slot < vm.running->stack_top; slot++) {
 			printf("[ ");
 			value_print(*slot);
 			printf(" ]");
@@ -546,7 +548,7 @@ static InterpretResult run() {
 			if (!call_value(vm_peek(argc), argc)) {
 				return INTERPRET_RUNTIME_ERROR;
 			}
-			frame = &vm.frames[vm.frame_count - 1];
+			frame = &vm.running->frames[vm.running->frame_count - 1];
 			break;
 		}
 		case OP_SET_FIELD: {
@@ -654,21 +656,29 @@ static InterpretResult run() {
 			break;
 		}
 		case OP_CLOSE_UPVALUE:
-			close_upvalues(vm.stack_top - 1);
+			close_upvalues(vm.running->stack_top - 1);
 			vm_pop();
 			break;
 		case OP_RETURN: {
 			Value result = vm_pop();
 			close_upvalues(frame->slots);
-			vm.frame_count--;
-			if (vm.frame_count == 0) {
+			vm.running->frame_count--;
+			if (vm.running->frame_count == 0) {
 				vm_pop();
-				return INTERPRET_OK;
+				if (vm.running->parent) {
+					vm.running = vm.running->parent;
+					vm_push(result);
+				} else {
+					return INTERPRET_OK;
+				}
+				frame = &vm.running->frames[vm.running->frame_count - 1];
+			} else {
+				frame = &vm.running->frames[vm.running->frame_count - 1];
+				vm.running->stack_top = frame->slots;
+				vm.running->current_frame = frame;
 			}
 
-			vm.stack_top = frame->slots;
 			vm_push(result);
-			frame = &vm.frames[vm.frame_count - 1];
 			break;
 		}
 		case OP_POP: {

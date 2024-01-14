@@ -40,6 +40,8 @@ const char *object_type_name(ObjectType type) {
 		return "dict";
 	case OBJ_UPVALUE:
 		return "upvalue";
+	case OBJ_COROUTINE:
+		return "coroutine";
 	}
 }
 
@@ -119,34 +121,33 @@ String *take_string(char *chars, size_t length) {
 }
 
 void object_print_indented(Value val, int depth) {
-	#define INDENT() for (int i = 0; i < depth; i++) printf("  ")
+	for (int i = 0; i < depth; i++) {
+		printf("  ");
+	}
 
 	switch(OBJ_TYPE(val)) {
 	case OBJ_STRING:
 		// Lox strings are not null-terminated and can be non-owned references to memory
 		// outside of the VM's heap. To print them, we need to use printf's precision
 		// specifier to print only the characters in the string.
-		INDENT();
 		printf("%.*s", (int)AS_STRING(val)->length, AS_CSTRING(val));
 		break;
 	case OBJ_CLOSURE:
-		INDENT();
 		function_print(AS_CLOSURE(val)->function);
 		break;
 	case OBJ_FUNCTION:
-		INDENT();
 		function_print(AS_FUNCTION(val));
 		break;
 	case OBJ_NATIVE:
-		INDENT();
 		printf("<native fn>");
 		break;
 	case OBJ_UPVALUE: // unreachable
-		INDENT();
 		printf("<upvalue>");
 		break;
-	case OBJ_LIST:
-		INDENT();
+	case OBJ_COROUTINE:
+		printf("<coroutine>");
+		break;
+	case OBJ_LIST: {
 		ValueArray *list = &AS_LIST(val)->values;
 		size_t count = list->count;
 		if (count > 1) {
@@ -167,6 +168,7 @@ void object_print_indented(Value val, int depth) {
 			printf("]");
 		}
 		break;
+	}
 	case OBJ_DICT: {
 		Table *list = &AS_DICT(val)->table;
 		size_t count = list->count;
@@ -319,4 +321,71 @@ Value dict_remove(Dictionary *dict, String *key) {
 
 void dict_clear(Dictionary *dict) {
 	dict->table.count = 0;
+}
+
+Coroutine *coroutine_new(Closure *closure) {
+	Coroutine *coroutine = ALLOCATE_OBJ(Coroutine, OBJ_COROUTINE, true);
+
+	coroutine->stack = GROW_ARRAY(Value, coroutine->stack, 0, STACK_INITIAL);
+	coroutine->stack_size = STACK_INITIAL;
+	coroutine->stack_top = coroutine->stack;
+
+	coroutine->frames = GROW_ARRAY(CallFrame, coroutine->frames, 0, FRAMES_INITIAL);
+	coroutine->frame_capacity = FRAMES_INITIAL;
+
+	if (closure) {
+		CallFrame *frame = &coroutine->frames[0];
+		frame->closure = closure;
+		frame->ip = closure->function->chunk.code;
+		frame->slots = coroutine->stack_top;
+
+		coroutine->frame_count = 1;
+		coroutine->current_frame = frame;
+	} else {
+		coroutine->frame_count = 0;
+		coroutine->current_frame = NULL;
+	}
+
+	// parent will be set when the coroutine is started / resumed
+	coroutine->parent = NULL;
+
+	coroutine->state = COROUTINE_READY;
+
+	return coroutine;
+}
+
+void coroutine_push(Coroutine *coroutine, Value value) {
+	if (coroutine->stack_top - coroutine->stack >= coroutine->stack_size) {
+		size_t old_size = coroutine->stack_size;
+		size_t offset = coroutine->stack_top - coroutine->stack;
+		coroutine->stack_size = GROW_CAPACITY(old_size);
+		coroutine->stack = GROW_ARRAY(Value, coroutine->stack, old_size, coroutine->stack_size);
+		coroutine->stack_top = coroutine->stack + offset;
+	}
+	*coroutine->stack_top = value;
+	coroutine->stack_top++;
+}
+
+Value coroutine_pop(Coroutine *coroutine) {
+	coroutine->stack_top--;
+	return *coroutine->stack_top;
+}
+
+Value coroutine_peek(Coroutine *coroutine, size_t distance) {
+	return coroutine->stack_top[-1 - distance];
+}
+
+void coroutine_reset(Coroutine *coroutine) {
+	coroutine->stack_top = coroutine->stack;
+
+	if (coroutine->frame_count > 0) {
+		coroutine->frame_count = 1;
+		coroutine->current_frame = &coroutine->frames[0];
+		coroutine->current_frame->ip = coroutine->current_frame->closure->function->chunk.code;
+	} else {
+		coroutine->frame_count = 0;
+		coroutine->current_frame = NULL;
+	}
+
+	coroutine->state = COROUTINE_READY;
 }
