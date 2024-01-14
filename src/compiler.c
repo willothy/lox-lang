@@ -340,12 +340,16 @@ static void parse_precedence(Precedence precedence) {
 
 static void function(FunctionType type);
 
+static void anon_fun(bool can_assign) {
+	function(FN_TYPE_ANONYMOUS);
+}
+
 static void expression() {
-	if (match(TOKEN_FUN)) {
-		function(FN_TYPE_ANONYMOUS);
-	} else {
-		parse_precedence(PREC_ASSIGNMENT);
-	}
+	// if (match(TOKEN_FUN)) {
+	// 	function(FN_TYPE_ANONYMOUS);
+	//    return;
+	// }
+	parse_precedence(PREC_ASSIGNMENT);
 }
 
 static void expression_statement() {
@@ -1010,25 +1014,30 @@ ParseRule rules[] = {
 	[TOKEN_STRING]        = {string,   NULL,   PREC_NONE},
 	[TOKEN_NUMBER]        = {number,   NULL,   PREC_NONE},
 	[TOKEN_AND]           = {NULL,     and_,   PREC_AND},
-	[TOKEN_CLASS]         = {NULL,     NULL,   PREC_NONE},
+	// [TOKEN_CLASS]         = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_ELSE]          = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_FALSE]         = {literal,  NULL,   PREC_NONE},
 	[TOKEN_FOR]           = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_FUN]           = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_FUN]           = {anon_fun,     NULL,   PREC_NONE},
 	[TOKEN_IF]            = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_NIL]           = {literal,  NULL,   PREC_NONE},
 	[TOKEN_OR]            = {NULL,     or_,    PREC_OR},
 	[TOKEN_RETURN]        = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_SUPER]         = {NULL,     NULL,   PREC_NONE},
+	// [TOKEN_SUPER]         = {NULL,     NULL,   PREC_NONE},
 	// Superclasses
 	// [TOKEN_SUPER]         = {super_,   NULL,   PREC_NONE},
-	[TOKEN_THIS]          = {NULL,     NULL,   PREC_NONE},
+	// [TOKEN_THIS]          = {NULL,     NULL,   PREC_NONE},
 	// Methods and Initializers
 	// [TOKEN_THIS]          = {this_,    NULL,   PREC_NONE},
 	[TOKEN_TRUE]          = {literal,  NULL,   PREC_NONE},
 	[TOKEN_VAR]           = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_WHILE]         = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_ERROR]         = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_IN]            = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_CONTINUE]      = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_BREAK]         = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_COROUTINE]     = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_YIELD]         = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_EOF]           = {NULL,     NULL,   PREC_NONE},
 };
 

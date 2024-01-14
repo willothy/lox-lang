@@ -143,7 +143,19 @@ static TokenType ident_type() {
 	switch (*scanner.start) {
 	// TODO: use tries
 	case 'a': return check_keyword(1, 2, "nd", TOKEN_AND);
-	case 'c': return check_keyword(1, 4, "lass", TOKEN_CLASS);
+	// case 'c': return check_keyword(1, 4, "lass", TOKEN_CLASS);
+	case 'b': return check_keyword(1, 4, "reak", TOKEN_BREAK);
+	case 'c': {
+		if (scanner.current - scanner.start > 1) {
+			TokenType type = check_keyword(1, 7, "ontinue", TOKEN_CONTINUE);
+			if (check_keyword(1, 7, "ontinue", TOKEN_CONTINUE) == TOKEN_CONTINUE) {
+				return TOKEN_CONTINUE;
+			}
+
+			return check_keyword(1, 1, "o", TOKEN_COROUTINE);
+		}
+		break;
+	}
 	case 'e': return check_keyword(1, 3, "lse", TOKEN_ELSE);
 	case 'f': {
 		if (scanner.current - scanner.start > 1) {
@@ -155,16 +167,24 @@ static TokenType ident_type() {
 		}
 		break;
 	}
-	case 'i': return check_keyword(1, 1, "f", TOKEN_IF);
+	case 'i': {
+		if (scanner.current - scanner.start > 1) {
+			switch (scanner.start[1]) {
+			case 'f': return TOKEN_IF;
+			case 'n': return TOKEN_IN;
+			}
+		}
+		break;
+	}
 	case 'n': return check_keyword(1, 2, "il", TOKEN_NIL);
 	case 'o': return check_keyword(1, 1, "r", TOKEN_OR);
 	// case 'p': return check_keyword(1, 4, "rint", TOKEN_PRINT);
 	case 'r': return check_keyword(1, 5, "eturn", TOKEN_RETURN);
-	case 's': return check_keyword(1, 4, "uper", TOKEN_SUPER);
+	// case 's': return check_keyword(1, 4, "uper", TOKEN_SUPER);
 	case 't': {
 		if (scanner.current - scanner.start > 1) {
 			switch (scanner.start[1]) {
-			case 'h': return check_keyword(2, 2, "is", TOKEN_THIS);
+			// case 'h': return check_keyword(2, 2, "is", TOKEN_THIS);
 			case 'r': return check_keyword(2, 2, "ue", TOKEN_TRUE);
 			}
 		}
@@ -172,6 +192,7 @@ static TokenType ident_type() {
 	}
 	case 'v': return check_keyword(1, 2, "ar", TOKEN_VAR);
 	case 'w': return check_keyword(1, 4, "hile", TOKEN_WHILE);
+	case 'y': return check_keyword(1, 3, "ield", TOKEN_YIELD);
 	}
 
 	return TOKEN_IDENTIFIER;

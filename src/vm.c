@@ -267,6 +267,7 @@ static bool call(Closure *closure, uint8_t argc) {
 	frame->closure = closure;
 	frame->ip = closure->function->chunk.code;
 	frame->slots = co->stack_top - argc - 1; // -1 to account for reserved stack slot 0
+
 	return true;
 }
 
@@ -549,6 +550,7 @@ static InterpretResult run() {
 				return INTERPRET_RUNTIME_ERROR;
 			}
 			frame = &vm.running->frames[vm.running->frame_count - 1];
+			vm.running->current_frame = frame;
 			break;
 		}
 		case OP_SET_FIELD: {
@@ -663,20 +665,29 @@ static InterpretResult run() {
 			Value result = vm_pop();
 			close_upvalues(frame->slots);
 			vm.running->frame_count--;
+			vm.running->stack_top -= frame->closure->function->arity + 1;
+
 			if (vm.running->frame_count == 0) {
-				vm_pop();
 				if (vm.running->parent) {
 					vm.running = vm.running->parent;
-					vm_push(result);
 				} else {
+#ifdef DEBUG_TRACE_EXECUTION
+					printf("stack:  ");
+					for (Value* slot = vm.running->stack; slot < vm.running->stack_top; slot++) {
+						printf("[ ");
+						value_print(*slot);
+						printf(" ]");
+					}
+					printf("\n");
+#endif
 					return INTERPRET_OK;
 				}
 				frame = &vm.running->frames[vm.running->frame_count - 1];
+				vm.running->stack_top = frame->slots;
 			} else {
 				frame = &vm.running->frames[vm.running->frame_count - 1];
-				vm.running->stack_top = frame->slots;
-				vm.running->current_frame = frame;
 			}
+			vm.running->current_frame = frame;
 
 			vm_push(result);
 			break;
