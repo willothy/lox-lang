@@ -7,6 +7,12 @@
 #include "table.h"
 #include "value.h"
 
+#define FRAMES_INITIAL 64
+#define STACK_INITIAL (FRAMES_INITIAL * UINT8_COUNT)
+
+#define FRAMES_MAX (UINT8_COUNT)
+#define STACK_MAX (FRAMES_MAX * UINT8_COUNT)
+
 typedef struct Object {
   // Header "contains" the following fields:
   // struct Object *next;
@@ -165,6 +171,52 @@ typedef struct {
   Object obj;
   Table table;
 } Dictionary;
+
+typedef enum {
+  COROUTINE_READY,
+  COROUTINE_RUNNING,
+  COROUTINE_COMPLETE,
+  COROUTINE_ERROR,
+} CoroutineState;
+
+typedef struct {
+  Closure *closure;
+  uint8_t *ip;
+  Value *slots;
+} CallFrame;
+
+typedef struct Coroutine {
+  struct Coroutine *parent;
+
+  // This exists so that we can iterate over all coroutines during
+  // garbage collection without needing do maintain a list of valid
+  // pointers to all coroutines. The main coroutine should *always*
+  // be the head of the list.
+  // struct Coroutine *next;
+
+  CallFrame *frames;
+  // We *must* ensure that this never exceeds some maximum
+  // to avoid memory leaks on infinite recursion.
+  size_t frame_capacity;
+  size_t frame_count;
+  // The current frame is frames[frame_count - 1].
+  CallFrame *current_frame;
+
+  Value *stack;
+  // We *must* ensure that this never exceeds some maximum
+  // to avoid memory leaks on infinite recursion.
+  size_t stack_size;
+  Value *stack_top;
+
+  CoroutineState state;
+} Coroutine;
+
+Coroutine *coroutine_new(Closure *closure);
+void coroutine_reset(Coroutine *coroutine);
+void coroutine_free(Coroutine *coroutine);
+void coroutine_push(Coroutine *coroutine, Value value);
+Value coroutine_pop(Coroutine *coroutine);
+Value coroutine_peek(Coroutine *coroutine, size_t distance);
 
 String *copy_string(const char *start, size_t length);
 String *take_string(char *chars, size_t length);
