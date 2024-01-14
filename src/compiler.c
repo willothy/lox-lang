@@ -351,7 +351,6 @@ static void expression() {
 static void expression_statement() {
 	expression();
 	consume(TOKEN_SEMICOLON, "Expect ';' after expression.");
-	// consume(TOKEN_NEWLINE, "Expect '\\n' after expression.");
 	emit_byte(OP_POP);
 }
 
@@ -382,7 +381,6 @@ static void synchronize() {
 
 	while (current_token().type != TOKEN_EOF) {
 		if (prev_token().type == TOKEN_SEMICOLON) return;
-		// if (prev_token().type == TOKEN_NEWLINE) return;
 		switch (current_token().type) {
 		case TOKEN_CLASS:
 		case TOKEN_FUN:
@@ -512,11 +510,9 @@ static void var_declaration() {
 		emit_byte(OP_NIL);
 	}
 	consume(TOKEN_SEMICOLON, "Expect ';' after variable declaration.");
-	// consume(TOKEN_NEWLINE, "Expect '\\n' after variable declaration.");
 
 	define_variable(global);
 }
-
 
 static void function(FunctionType type) {
 	Compiler compiler;
@@ -666,12 +662,10 @@ static void return_statement() {
 	}
 
 	if (match(TOKEN_SEMICOLON))  {
-		// if (match(TOKEN_NEWLINE)) {
 		emit_return();
 	} else {
 		expression();
 		consume(TOKEN_SEMICOLON, "Expect '\\n' after return value.");
-		// consume(TOKEN_NEWLINE, "Expect '\\n' after return value.");
 		emit_byte(OP_RETURN);
 	}
 }
