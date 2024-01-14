@@ -427,29 +427,29 @@ static void add_local(Token name) {
 }
 
 static void mark_initialized() {
-	if (current->scope_depth == 0) {
-		return;
-	}
+	// if (current->scope_depth == 0) {
+	// 	return;
+	// }
 	current->locals[current->local_count - 1].depth = current->scope_depth;
 }
 
 static void define_variable(uint32_t global) {
-	if (current->scope_depth > 0) {
-		mark_initialized();
-		return;
-	};
+	// if (current->scope_depth > 0) {
+	mark_initialized();
+	return;
+	// };
 
-	if (global > UINT8_MAX) {
-		// TODO: is this the correct order?
-		emit_bytes(OP_DEFINE_GLOBAL_LONG, global & 0xff);
-		emit_bytes( (global >> 8) & 0xff, (global >> 16) & 0xff);
-	} else {
-		emit_bytes(OP_DEFINE_GLOBAL, global);
-	}
+	// if (global > UINT8_MAX) {
+	// 	// TODO: is this the correct order?
+	// 	emit_bytes(OP_DEFINE_GLOBAL_LONG, global & 0xff);
+	// 	emit_bytes( (global >> 8) & 0xff, (global >> 16) & 0xff);
+	// } else {
+	// 	emit_bytes(OP_DEFINE_GLOBAL, global);
+	// }
 }
 
 static void declare_variable() {
-	if (current->scope_depth == 0) return;
+	// if (current->scope_depth == 0) return;
 
 #ifndef ALLOW_SHADOWING
 	for (int i = current->local_count - 1; i >= 0; i--) {
@@ -494,7 +494,8 @@ static uint32_t parse_variable(const char *message) {
 	consume(TOKEN_IDENTIFIER, message);
 
 	declare_variable();
-	if (current->scope_depth > 0) return 0;
+	// if (current->scope_depth > 0) return 0;
+	return 0;
 
 	return identifier_constant(&parser.tokens[parser.current-1]);
 }
