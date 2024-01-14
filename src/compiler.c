@@ -345,10 +345,6 @@ static void anon_fun(bool can_assign) {
 }
 
 static void expression() {
-	// if (match(TOKEN_FUN)) {
-	// 	function(FN_TYPE_ANONYMOUS);
-	//    return;
-	// }
 	parse_precedence(PREC_ASSIGNMENT);
 }
 
@@ -431,30 +427,14 @@ static void add_local(Token name) {
 }
 
 static void mark_initialized() {
-	// if (current->scope_depth == 0) {
-	// 	return;
-	// }
 	current->locals[current->local_count - 1].depth = current->scope_depth;
 }
 
-static void define_variable(uint32_t global) {
-	// if (current->scope_depth > 0) {
+static void define_variable() {
 	mark_initialized();
-	return;
-	// };
-
-	// if (global > UINT8_MAX) {
-	// 	// TODO: is this the correct order?
-	// 	emit_bytes(OP_DEFINE_GLOBAL_LONG, global & 0xff);
-	// 	emit_bytes( (global >> 8) & 0xff, (global >> 16) & 0xff);
-	// } else {
-	// 	emit_bytes(OP_DEFINE_GLOBAL, global);
-	// }
 }
 
 static void declare_variable() {
-	// if (current->scope_depth == 0) return;
-
 #ifndef ALLOW_SHADOWING
 	for (int i = current->local_count - 1; i >= 0; i--) {
 		Local* local = &current->locals[i];
@@ -494,18 +474,14 @@ static void end_scope() {
 	}
 }
 
-static uint32_t parse_variable(const char *message) {
+static void parse_variable(const char *message) {
 	consume(TOKEN_IDENTIFIER, message);
 
 	declare_variable();
-	// if (current->scope_depth > 0) return 0;
-	return 0;
-
-	return identifier_constant(&parser.tokens[parser.current-1]);
 }
 
 static void var_declaration() {
-	uint32_t global = parse_variable("Expect variable name.");
+	parse_variable("Expect variable name.");
 
 	if (match(TOKEN_EQUAL)) {
 		expression();
@@ -514,7 +490,7 @@ static void var_declaration() {
 	}
 	consume(TOKEN_SEMICOLON, "Expect ';' after variable declaration.");
 
-	define_variable(global);
+	define_variable();
 }
 
 static void function(FunctionType type) {
@@ -530,8 +506,8 @@ static void function(FunctionType type) {
 			if (current->function->arity > UINT8_MAX) {
 				error_at_current("Cannot have more than 255 parameters.");
 			}
-			uint32_t param_constant = parse_variable("Expect parameter name.");
-			define_variable(param_constant);
+			parse_variable("Expect parameter name.");
+			define_variable();
 		} while(match(TOKEN_COMMA));
 	}
 	consume(TOKEN_RIGHT_PAREN, "Expect ')' after function parameters.");
@@ -545,7 +521,6 @@ static void function(FunctionType type) {
 		emit_bytes(OP_CLOSURE_LONG, index & 0xff);
 		emit_bytes( (index >> 8) & 0xff, (index >> 16) & 0xff);
 	} else {
-		// emit_bytes(OP_CLOSURE, (uint8_t)index);
 		emit_byte(OP_CLOSURE);
 		emit_byte(index);
 	}
@@ -557,10 +532,9 @@ static void function(FunctionType type) {
 }
 
 static void fun_declaration() {
-	uint32_t global = parse_variable("Expect function name.");
+	parse_variable("Expect function name.");
 	mark_initialized();
 	function(FN_TYPE_NAMED);
-	define_variable(global);
 }
 
 static void declaration() {
@@ -612,15 +586,6 @@ static void for_statement() {
 	if (match(TOKEN_SEMICOLON)) {
 		// No initializer.
 	} else if (match(TOKEN_VAR)) {
-		// if (!match(TOKEN_IDENTIFIER)) {
-		// 	error("Expect variable name after 'var'.");
-		// 	return;
-		// }
-		// add_local(prev_token());
-		// mark_initialized();
-		// named_variable(prev_token(), true);
-		// consume(TOKEN_SEMICOLON, "Expect ';' after variable declaration.");
-		//   emit_byte(OP_POP);
 		var_declaration();
 	} else {
 		expression_statement();
@@ -645,8 +610,6 @@ static void for_statement() {
 		uint32_t increment_start = current_chunk()->count;
 		expression();
 		emit_byte(OP_POP);
-		// TODO: Don't require parentheses.
-		// consume(TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
 		emit_loop(loop_start);
 		loop_start = increment_start;
 		patch_jump(body_jump);
