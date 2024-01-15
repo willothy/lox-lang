@@ -294,7 +294,15 @@ static Function *end_compilation() {
 
 	#ifdef DEBUG_PRINT_CODE
 	if (!parser.had_error) {
-		disassemble_chunk(current_chunk(), function->name != NULL ? function->name->chars : "<script>");
+		char *name;
+		if (function->name == NULL) {
+			name = "<script>";
+		} else if (function->name->length == 0) {
+			name = "<anonymous>";
+		} else {
+			name = function->name->chars;
+		}
+		disassemble_chunk(current_chunk(), name);
 	}
 	#endif
 
@@ -537,11 +545,20 @@ static void fun_declaration() {
 	function(FN_TYPE_NAMED);
 }
 
+static void coroutine_declaration() {
+	parse_variable("Expect coroutine name.");
+	mark_initialized();
+	function(FN_TYPE_NAMED);
+	emit_byte(OP_COROUTINE);
+}
+
 static void declaration() {
 	if (match(TOKEN_FUN)) {
 		fun_declaration();
 	} else if (match(TOKEN_VAR)) {
 		var_declaration();
+	} else if (match(TOKEN_COROUTINE)) {
+		coroutine_declaration();
 	} else {
 		statement();
 	}
@@ -663,6 +680,16 @@ static void or_(bool can_assign) {
 	patch_jump(end_jump);
 }
 
+static void yield_statement() {
+	if (match(TOKEN_SEMICOLON)) {
+		emit_byte(OP_YIELD);
+	} else {
+		expression();
+		consume(TOKEN_SEMICOLON, "Expect ';' after expression.");
+		emit_byte(OP_YIELD);
+	}
+}
+
 static void statement() {
 	if (match(TOKEN_IF)) {
 		// TODO: support if in expression position
@@ -673,6 +700,8 @@ static void statement() {
 		for_statement();
 	} else if (match(TOKEN_WHILE)) {
 		while_statement();
+	} else if (match(TOKEN_YIELD)) {
+		yield_statement();
 	} else if (match(TOKEN_LEFT_BRACE)) {
 		begin_scope();
 		block();
@@ -944,6 +973,16 @@ static void dot(bool can_assign) {
 	}
 }
 
+static void coroutine(bool can_assign) {
+	expression();
+	emit_byte(OP_COROUTINE);
+}
+
+static void await(bool can_assign) {
+	expression();
+	emit_byte(OP_AWAIT);
+}
+
 ParseRule rules[] = {
 	[TOKEN_LEFT_PAREN]    = {grouping, call,   PREC_CALL},
 	[TOKEN_RIGHT_PAREN]   = {NULL,     NULL,   PREC_NONE},
@@ -999,8 +1038,9 @@ ParseRule rules[] = {
 	[TOKEN_IN]            = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_CONTINUE]      = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_BREAK]         = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_COROUTINE]     = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_COROUTINE]     = {coroutine,     NULL,   PREC_NONE},
 	[TOKEN_YIELD]         = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_AWAIT]         = {await,    NULL,   PREC_NONE},
 	[TOKEN_EOF]           = {NULL,     NULL,   PREC_NONE},
 };
 
