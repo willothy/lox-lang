@@ -35,6 +35,15 @@ static Value print_native(uint8_t argc, Value *args) {
 	return NIL_VAL;
 }
 
+static Value coro_reset_native(uint8_t argc, Value *args) {
+	if (!IS_COROUTINE(args[0])) {
+		return NIL_VAL;
+	}
+	Coroutine *co = AS_COROUTINE(args[0]);
+	coroutine_reset(co);
+	return NIL_VAL;
+}
+
 static Value type_native(uint8_t argc, Value *args) {
 	const ConstStr type = value_type_name(args[0]);
 	String *string = copy_string(type.chars, type.length);
@@ -143,6 +152,7 @@ char *vm_init() {
 	define_native("print", print_native, 1);
 	define_native("type", type_native, 1);
 	define_native("is", is_type_native, 2);
+	define_native("reset", coro_reset_native, 1);
 
 	return NULL;
 }
@@ -243,80 +253,6 @@ static void concatonate() {
 	vm_push(OBJ_VAL(result));
 }
 
-static bool call(Closure *closure, uint8_t argc) {
-#ifdef DYNAMIC_TYPE_CHECKING
-	if (argc != closure->function->arity) {
-		runtime_error("Expected %d arguments but got %d.", closure->function->arity, argc);
-		return false;
-	}
-#endif
-	Coroutine *co = vm.running;
-
-	if (co->frame_count == FRAMES_MAX) {
-		runtime_error("Stack overflow.");
-		return false;
-	} else if (co->frame_count + 1 >= co->frame_capacity) {
-		size_t new_capacity = GROW_CAPACITY(co->frame_capacity);
-		if (new_capacity > FRAMES_MAX) {
-			new_capacity = FRAMES_MAX;
-		}
-		co->frames = GROW_ARRAY(CallFrame, co->frames, co->frame_capacity, new_capacity);
-		co->frame_capacity = new_capacity;
-	}
-
-	CallFrame *frame = &co->frames[co->frame_count++];
-	frame->closure = closure;
-	frame->ip = closure->function->chunk.code;
-	frame->slots = co->stack_top - argc - 1; // -1 to account for reserved stack slot 0
-
-	co->current_frame = frame;
-
-	return true;
-}
-
-static bool call_native(NativeFunction *native, uint8_t argc) {
-#ifdef NATIVE_ARITY_CHECKING
-	if (argc != native->arity) {
-		runtime_error("Expected %d arguments but got %d.", native->arity, argc);
-		return false;
-	}
-#endif
-
-	Value result = native->function(argc, vm.running->stack_top - argc);
-	vm.running->stack_top -= argc + 1;
-	vm_push(result);
-	return true;
-}
-
-static bool call_coroutine(Coroutine *co, uint8_t argc) {
-	co->parent = vm.running;
-	vm.running = co;
-	return true;
-}
-
-static bool call_value(Value callee, uint8_t argc) {
-	if (IS_OBJ(callee)) {
-		switch (OBJ_TYPE(callee)) {
-		case OBJ_CLOSURE:
-			return call(AS_CLOSURE(callee), argc);
-		case OBJ_NATIVE:
-			return call_native(AS_NATIVE(callee), argc);
-		case OBJ_COROUTINE:
-			return call_coroutine(AS_COROUTINE(callee), argc);
-		case OBJ_FUNCTION: // should be unreachable (for now)
-			// return call(AS_FUNCTION(callee), argc);
-			break;
-		case OBJ_LIST:
-		case OBJ_UPVALUE:
-		case OBJ_DICT:
-		case OBJ_STRING:
-			break;
-		}
-	}
-	runtime_type_error(callee, "Can only call functions and classes, attempted to call ");
-	return false;
-}
-
 static Upvalue* upvalue_capture(Value *local) {
 	Upvalue *prev_upvalue = NULL;
 
@@ -414,6 +350,136 @@ static bool get_field(Value container, Value key) {
 	return false;
 }
 
+static bool call(Closure *closure, uint8_t argc) {
+#ifdef DYNAMIC_TYPE_CHECKING
+	if (argc != closure->function->arity) {
+		runtime_error("Expected %d arguments but got %d.", closure->function->arity, argc);
+		return false;
+	}
+#endif
+	Coroutine *co = vm.running;
+
+	if (co->frame_count == FRAMES_MAX) {
+		runtime_error("Stack overflow.");
+		return false;
+	} else if (co->frame_count + 1 >= co->frame_capacity) {
+		size_t new_capacity = GROW_CAPACITY(co->frame_capacity);
+		if (new_capacity > FRAMES_MAX) {
+			new_capacity = FRAMES_MAX;
+		}
+		co->frames = GROW_ARRAY(CallFrame, co->frames, co->frame_capacity, new_capacity);
+		co->frame_capacity = new_capacity;
+	}
+
+	CallFrame *frame = &co->frames[co->frame_count++];
+	frame->closure = closure;
+	frame->ip = closure->function->chunk.code;
+	frame->slots = co->stack_top - argc - 1; // -1 to account for reserved stack slot 0
+
+	co->current_frame = frame;
+
+	return true;
+}
+
+static bool call_native(NativeFunction *native, uint8_t argc) {
+#ifdef NATIVE_ARITY_CHECKING
+	if (argc != native->arity) {
+		runtime_error("Expected %d arguments but got %d.", native->arity, argc);
+		return false;
+	}
+#endif
+
+	Value result = native->function(argc, vm.running->stack_top - argc);
+	vm.running->stack_top -= argc + 1;
+	vm_push(result);
+	return true;
+}
+
+static bool call_coroutine(Coroutine *co, uint8_t argc) {
+	switch(co->state){
+	case COROUTINE_RUNNING:
+		runtime_error("Attempted to resume a running coroutine.");
+		return false;
+	case COROUTINE_COMPLETE:
+		runtime_error("Attempted to resume a finished coroutine.");
+		return false;
+	case COROUTINE_ERROR:
+		runtime_error("Attempted to resume a dead (errored) coroutine.");
+		return false;
+	case COROUTINE_READY:
+		break;
+	}
+
+	coroutine_push(co, OBJ_VAL(co));
+
+	for (size_t i = 0; i < argc; i++) {
+		coroutine_push(co, vm_pop());
+	}
+
+	co->parent = vm.running;
+	vm.running = co;
+
+	return true;
+}
+
+static bool call_value(Value callee, uint8_t argc) {
+	if (IS_OBJ(callee)) {
+		switch (OBJ_TYPE(callee)) {
+		case OBJ_CLOSURE:
+			return call(AS_CLOSURE(callee), argc);
+		case OBJ_NATIVE:
+			return call_native(AS_NATIVE(callee), argc);
+		case OBJ_COROUTINE:
+			return call_coroutine(AS_COROUTINE(callee), argc);
+		case OBJ_FUNCTION: // should be unreachable (for now)
+			// return call(AS_FUNCTION(callee), argc);
+			break;
+		case OBJ_LIST:
+		case OBJ_UPVALUE:
+		case OBJ_DICT:
+		case OBJ_STRING:
+			break;
+		}
+	}
+	runtime_type_error(callee, "Can only call functions and classes, attempted to call ");
+	return false;
+}
+
+static bool do_return(CallFrame **fr) {
+	CallFrame *frame = *fr;
+	Value result = vm_pop();
+	close_upvalues(frame->slots);
+	vm.running->frame_count--;
+	vm.running->stack_top -= frame->closure->function->arity + 1;
+
+	if (vm.running->frame_count == 0) {
+		vm.running->state = COROUTINE_COMPLETE;
+		if (vm.running->parent) {
+			vm.running = vm.running->parent;
+			vm.running->stack_top--;
+		} else {
+#ifdef DEBUG_TRACE_EXECUTION
+			printf("stack:  ");
+			for (Value* slot = vm.running->stack; slot < vm.running->stack_top; slot++) {
+				printf("[ ");
+				value_print(*slot);
+				printf(" ]");
+			}
+			printf("\n");
+#endif
+			return true;
+		}
+		*fr = &vm.running->frames[vm.running->frame_count - 1];
+		// vm.running->stack_top = frame->slots;
+	} else {
+		*fr = &vm.running->frames[vm.running->frame_count - 1];
+	}
+	vm.running->current_frame = frame;
+
+	vm_push(result);
+	return false;
+}
+
 static InterpretResult run() {
 	// TODO: Implement register ip optimization
 	// register uint8_t *ip = vm.chunk->code;
@@ -458,6 +524,17 @@ static InterpretResult run() {
 			value_print(*slot);
 			printf(" ]");
 		}
+		printf("\n");
+		printf("top:    ");
+		printf("[ ");
+		value_print(vm.running->stack_top[-1]);
+		printf(" ]");
+		printf("\n");
+		printf("ip:     ");
+		printf("[ ");
+		printf("%zu", (size_t)(frame->ip - frame->closure->function->chunk.code));
+		// printf("%p", (frame->ip));
+		printf(" ]");
 		printf("\n");
 		disassemble_instruction(&frame->closure->function->chunk, (size_t)(frame->ip - frame->closure->function->chunk.code));
     #endif
@@ -672,34 +749,9 @@ static InterpretResult run() {
 			vm_pop();
 			break;
 		case OP_RETURN: {
-			Value result = vm_pop();
-			close_upvalues(frame->slots);
-			vm.running->frame_count--;
-			vm.running->stack_top -= frame->closure->function->arity + 1;
-
-			if (vm.running->frame_count == 0) {
-				if (vm.running->parent) {
-					vm.running = vm.running->parent;
-				} else {
-#ifdef DEBUG_TRACE_EXECUTION
-					printf("stack:  ");
-					for (Value* slot = vm.running->stack; slot < vm.running->stack_top; slot++) {
-						printf("[ ");
-						value_print(*slot);
-						printf(" ]");
-					}
-					printf("\n");
-#endif
-					return INTERPRET_OK;
-				}
-				frame = &vm.running->frames[vm.running->frame_count - 1];
-				// vm.running->stack_top = frame->slots;
-			} else {
-				frame = &vm.running->frames[vm.running->frame_count - 1];
+			if (do_return(&frame)) {
+				return INTERPRET_OK;
 			}
-			vm.running->current_frame = frame;
-
-			vm_push(result);
 			break;
 		}
 		case OP_POP: {

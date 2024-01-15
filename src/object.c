@@ -381,14 +381,9 @@ Value coroutine_peek(Coroutine *coroutine, size_t distance) {
 void coroutine_reset(Coroutine *coroutine) {
 	coroutine->stack_top = coroutine->stack;
 
-	if (coroutine->frame_count > 0) {
-		coroutine->frame_count = 1;
-		coroutine->current_frame = &coroutine->frames[0];
-		coroutine->current_frame->ip = coroutine->current_frame->closure->function->chunk.code;
-	} else {
-		coroutine->frame_count = 0;
-		coroutine->current_frame = NULL;
-	}
+	coroutine->frame_count = 1;
+	coroutine->current_frame = &coroutine->frames[0];
+	coroutine->current_frame->ip = coroutine->current_frame->closure->function->chunk.code;
 
 	coroutine->state = COROUTINE_READY;
 }
