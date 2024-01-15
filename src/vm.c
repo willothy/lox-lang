@@ -478,13 +478,11 @@ static bool do_return(CallFrame **fr) {
 	Value result = vm_pop();
 	close_upvalues(frame->slots);
 	vm.running->frame_count--;
-	vm.running->stack_top -= frame->closure->function->arity + 1;
 
 	if (vm.running->frame_count == 0) {
 		vm.running->state = COROUTINE_COMPLETE;
 		if (vm.running->parent) {
 			vm.running = vm.running->parent;
-			vm.running->stack_top--;
 		} else {
 #ifdef DEBUG_TRACE_EXECUTION
 			printf("stack:  ");
@@ -497,12 +495,9 @@ static bool do_return(CallFrame **fr) {
 #endif
 			return true;
 		}
-		*fr = &vm.running->frames[vm.running->frame_count - 1];
-		// vm.running->stack_top = frame->slots;
-	} else {
-		*fr = &vm.running->frames[vm.running->frame_count - 1];
 	}
-	vm.running->current_frame = frame;
+	*fr = &vm.running->frames[vm.running->frame_count - 1];
+	vm.running->current_frame = *fr;
 
 	vm_push(result);
 	return false;
