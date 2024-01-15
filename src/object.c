@@ -386,4 +386,6 @@ void coroutine_reset(Coroutine *coroutine) {
 	coroutine->current_frame->ip = coroutine->current_frame->closure->function->chunk.code;
 
 	coroutine->state = COROUTINE_READY;
+
+	coroutine_push(coroutine, OBJ_VAL(coroutine));
 }

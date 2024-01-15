@@ -175,9 +175,16 @@ typedef struct {
 } Dictionary;
 
 typedef enum {
+  // The coroutine has been created but has not been started yet.
   COROUTINE_READY,
+  // The coroutine has yielded and is waiting to be resumed.
+  COROUTINE_PAUSED,
+  // The coroutine is currently running, and is either the current coroutine
+  // or one of its ancestors.
   COROUTINE_RUNNING,
+  // The coroutine has finished executing.
   COROUTINE_COMPLETE,
+  // The coroutine has thrown an error.
   COROUTINE_ERROR,
 } CoroutineState;
 

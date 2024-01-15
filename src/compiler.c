@@ -580,6 +580,7 @@ static void while_statement() {
 	expression();
 
 	uint32_t exit_jump = emit_jump(OP_JUMP_IF_FALSE);
+	emit_byte(OP_POP);
 	begin_scope();
 	consume(TOKEN_LEFT_BRACE, "Expect '{' after while condition.");
 	block();
@@ -682,6 +683,7 @@ static void or_(bool can_assign) {
 
 static void yield_statement() {
 	if (match(TOKEN_SEMICOLON)) {
+		emit_byte(OP_NIL);
 		emit_byte(OP_YIELD);
 	} else {
 		expression();

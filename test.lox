@@ -1,6 +1,8 @@
 
 var p = co fun(x) {
-  print(x)
+  while true {
+    yield print(x)
+  }
 }
 
 p({
@@ -8,6 +10,5 @@ p({
 })
 
 for var i = 0; i < 10; i = i + 1 {
-  reset(p)
   p(i)
 }
