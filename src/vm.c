@@ -400,17 +400,20 @@ static bool call_coroutine(Coroutine *co, uint8_t argc) {
 	case COROUTINE_RUNNING:
 		runtime_error("Attempted to resume a running coroutine.");
 		return false;
-	case COROUTINE_COMPLETE:
-		runtime_error("Attempted to resume a finished coroutine.");
-		return false;
 	case COROUTINE_ERROR:
 		runtime_error("Attempted to resume a dead (errored) coroutine.");
 		return false;
+	case COROUTINE_COMPLETE:
+		// runtime_error("Attempted to resume a finished coroutine.");
+		// return false;
+		coroutine_reset(co);
+		break;
 	case COROUTINE_READY:
+		coroutine_push(co, OBJ_VAL(co));
+		break;
+	case COROUTINE_PAUSED:
 		break;
 	}
-
-	coroutine_push(co, OBJ_VAL(co));
 
 	for (size_t i = 0; i < argc; i++) {
 		coroutine_push(co, vm_pop());
@@ -418,6 +421,8 @@ static bool call_coroutine(Coroutine *co, uint8_t argc) {
 
 	co->parent = vm.running;
 	vm.running = co;
+
+	co->state = COROUTINE_RUNNING;
 
 	return true;
 }
@@ -443,6 +448,29 @@ static bool call_value(Value callee, uint8_t argc) {
 	}
 	runtime_type_error(callee, "Can only call functions and classes, attempted to call ");
 	return false;
+}
+
+static bool do_yield(CallFrame **fr) {
+	CallFrame *frame = *fr;
+	Value result = vm_pop();
+
+	if (vm.running->parent) {
+		vm.running->state = COROUTINE_PAUSED;
+		// clear the previous arguments so the coroutine can be resumed
+		vm.running->stack_top -= frame->closure->function->arity;
+		// set the parent coroutine to active
+		vm.running = vm.running->parent;
+		*fr = vm.running->current_frame;
+	} else {
+		if (vm.running == vm.main) {
+			runtime_error("Attempted to yield from the main coroutine.");
+			return false;
+		}
+		runtime_error("Unexpected toplevel coroutine - this is a bug.");
+		return false;
+	}
+
+	return true;
 }
 
 static bool do_return(CallFrame **fr) {
@@ -752,6 +780,10 @@ static InterpretResult run() {
 			if (do_return(&frame)) {
 				return INTERPRET_OK;
 			}
+			break;
+		}
+		case OP_YIELD: {
+			do_yield(&frame);
 			break;
 		}
 		case OP_POP: {

@@ -164,6 +164,8 @@ size_t disassemble_instruction(Chunk *chunk, size_t offset) {
 		return jump_instruction("OP_LOOP", -1, chunk, offset);
 	case OP_COROUTINE:
 		return simple_instruction("OP_COROUTINE", offset);
+	case OP_YIELD:
+		return simple_instruction("OP_YIELD", offset);
 	case OP_NIL:
 		return simple_instruction("OP_NIL", offset);
 	case OP_TRUE:
