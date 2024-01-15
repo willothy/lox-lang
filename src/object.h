@@ -118,6 +118,7 @@ static inline bool is_obj_type(Value value, ObjectType type) {
 #define IS_UPVALUE(value) is_obj_type(value, OBJ_UPVALUE)
 #define IS_LIST(value) is_obj_type(value, OBJ_LIST)
 #define IS_DICT(value) is_obj_type(value, OBJ_DICT)
+#define IS_COROUTINE(value) is_obj_type(value, OBJ_COROUTINE)
 
 #define AS_STRING(value) ((String *)AS_OBJ(value))
 #define AS_CSTRING(value) (((String *)AS_OBJ(value))->chars)
@@ -128,6 +129,7 @@ static inline bool is_obj_type(Value value, ObjectType type) {
 #define AS_UPVALUE(value) ((Upvalue *)AS_OBJ(value))
 #define AS_LIST(value) ((List *)AS_OBJ(value))
 #define AS_DICT(value) ((Dictionary *)AS_OBJ(value))
+#define AS_COROUTINE(value) ((Coroutine *)AS_OBJ(value))
 
 typedef struct {
   Object object;
@@ -186,6 +188,7 @@ typedef struct {
 } CallFrame;
 
 typedef struct Coroutine {
+  Object obj;
   struct Coroutine *parent;
 
   // This exists so that we can iterate over all coroutines during

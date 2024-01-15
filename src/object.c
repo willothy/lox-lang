@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "memory.h"
@@ -326,10 +327,12 @@ void dict_clear(Dictionary *dict) {
 Coroutine *coroutine_new(Closure *closure) {
 	Coroutine *coroutine = ALLOCATE_OBJ(Coroutine, OBJ_COROUTINE, true);
 
+	coroutine->stack = NULL;
 	coroutine->stack = GROW_ARRAY(Value, coroutine->stack, 0, STACK_INITIAL);
 	coroutine->stack_size = STACK_INITIAL;
 	coroutine->stack_top = coroutine->stack;
 
+	coroutine->frames = NULL;
 	coroutine->frames = GROW_ARRAY(CallFrame, coroutine->frames, 0, FRAMES_INITIAL);
 	coroutine->frame_capacity = FRAMES_INITIAL;
 
@@ -337,7 +340,7 @@ Coroutine *coroutine_new(Closure *closure) {
 		CallFrame *frame = &coroutine->frames[0];
 		frame->closure = closure;
 		frame->ip = closure->function->chunk.code;
-		frame->slots = coroutine->stack_top;
+		frame->slots = coroutine->stack_top - closure->function->arity + 1;
 
 		coroutine->frame_count = 1;
 		coroutine->current_frame = frame;

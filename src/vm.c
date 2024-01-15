@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <time.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -196,7 +197,7 @@ static void runtime_error(const char *format,...) {
 	vm_reset();
 }
 
-static void runtime_error_value(Value value, const char *format, ...) {
+static void runtime_type_error(Value value, const char *format, ...) {
 	va_list args;
 	va_start(args, format);
 	vfprintf(stderr, format, args);
@@ -268,41 +269,51 @@ static bool call(Closure *closure, uint8_t argc) {
 	frame->ip = closure->function->chunk.code;
 	frame->slots = co->stack_top - argc - 1; // -1 to account for reserved stack slot 0
 
+	co->current_frame = frame;
+
+	return true;
+}
+
+static bool call_native(NativeFunction *native, uint8_t argc) {
+#ifdef NATIVE_ARITY_CHECKING
+	if (argc != native->arity) {
+		runtime_error("Expected %d arguments but got %d.", native->arity, argc);
+		return false;
+	}
+#endif
+
+	Value result = native->function(argc, vm.running->stack_top - argc);
+	vm.running->stack_top -= argc + 1;
+	vm_push(result);
+	return true;
+}
+
+static bool call_coroutine(Coroutine *co, uint8_t argc) {
+	co->parent = vm.running;
+	vm.running = co;
 	return true;
 }
 
 static bool call_value(Value callee, uint8_t argc) {
 	if (IS_OBJ(callee)) {
 		switch (OBJ_TYPE(callee)) {
-		case OBJ_FUNCTION:
-			// return call(AS_FUNCTION(callee), argc);
-			// should be unreachable (for now)
-			break;
 		case OBJ_CLOSURE:
 			return call(AS_CLOSURE(callee), argc);
-		case OBJ_NATIVE: {
-			NativeFunction *native = AS_NATIVE(callee);
-#ifdef NATIVE_ARITY_CHECKING
-			if (argc != native->arity) {
-				runtime_error("Expected %d arguments but got %d.", native->arity, argc);
-				return false;
-			}
-#endif
-
-			Value result = native->function(argc, vm.running->stack_top - argc);
-			vm.running->stack_top -= argc + 1;
-			vm_push(result);
-			return true;
-		}
+		case OBJ_NATIVE:
+			return call_native(AS_NATIVE(callee), argc);
+		case OBJ_COROUTINE:
+			return call_coroutine(AS_COROUTINE(callee), argc);
+		case OBJ_FUNCTION: // should be unreachable (for now)
+			// return call(AS_FUNCTION(callee), argc);
+			break;
 		case OBJ_LIST:
 		case OBJ_UPVALUE:
 		case OBJ_DICT:
 		case OBJ_STRING:
-		case OBJ_COROUTINE: // TODO how should coroutines be resumed?
 			break;
 		}
 	}
-	runtime_error_value(callee, "Can only call functions and classes, attempted to call ");
+	runtime_type_error(callee, "Can only call functions and classes, attempted to call ");
 	return false;
 }
 
@@ -550,7 +561,6 @@ static InterpretResult run() {
 				return INTERPRET_RUNTIME_ERROR;
 			}
 			frame = &vm.running->frames[vm.running->frame_count - 1];
-			vm.running->current_frame = frame;
 			break;
 		}
 		case OP_SET_FIELD: {
@@ -683,7 +693,7 @@ static InterpretResult run() {
 					return INTERPRET_OK;
 				}
 				frame = &vm.running->frames[vm.running->frame_count - 1];
-				vm.running->stack_top = frame->slots;
+				// vm.running->stack_top = frame->slots;
 			} else {
 				frame = &vm.running->frames[vm.running->frame_count - 1];
 			}
@@ -753,6 +763,17 @@ static InterpretResult run() {
 				value = NIL_VAL;
 			}
 			vm_push(value);
+			break;
+		}
+		case OP_COROUTINE: {
+			Value f = vm_peek(0);
+			if (!IS_CLOSURE(f)) {
+				runtime_error("Attempted to create a coroutine from a non-function value.");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+			Coroutine *co = coroutine_new(AS_CLOSURE(f));
+			vm_pop();
+			vm_push(OBJ_VAL(co));
 			break;
 		}
 		case OP_GET_LOCAL: {

@@ -1,5 +1,5 @@
 
-var p = fun(x) {
+var p = co fun(x) {
   print(x)
 }
 

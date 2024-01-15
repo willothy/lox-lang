@@ -142,7 +142,17 @@ static TokenType check_keyword(size_t start, size_t length, const char* rest, To
 static TokenType ident_type() {
 	switch (*scanner.start) {
 	// TODO: use tries
-	case 'a': return check_keyword(1, 2, "nd", TOKEN_AND);
+	case 'a': {
+		switch (scanner.start[1]) {
+		case 'n':
+			return check_keyword(1, 2, "nd", TOKEN_AND);
+		case 'w':
+			return check_keyword(1, 3, "ait", TOKEN_AWAIT);
+		default:
+			break;
+		}
+		break;
+	};
 	// case 'c': return check_keyword(1, 4, "lass", TOKEN_CLASS);
 	case 'b': return check_keyword(1, 4, "reak", TOKEN_BREAK);
 	case 'c': {
