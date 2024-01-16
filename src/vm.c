@@ -417,10 +417,7 @@ static bool call_coroutine(Coroutine *co, uint8_t argc) {
 		runtime_error("Attempted to resume a dead (errored) coroutine.");
 		return false;
 	case COROUTINE_COMPLETE:
-		// runtime_error("Attempted to resume a finished coroutine.");
-		// return false;
 		coroutine_reset(co);
-		break;
 	case COROUTINE_READY:
 		coroutine_push(co, OBJ_VAL(co));
 		break;
@@ -533,6 +530,7 @@ static bool do_return(CallFrame **fr) {
 			}
 			printf("\n");
 #endif
+			vm_reset();
 			return true;
 		}
 	}
