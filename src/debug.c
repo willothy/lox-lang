@@ -81,9 +81,9 @@ size_t disassemble_instruction(Chunk *chunk, size_t offset) {
 	case OP_DICT_LONG:
 		return byte_long_instruction("OP_DICT_LONG", chunk, offset);
 	case OP_SET_FIELD:
-		return byte_instruction("OP_SET_FIELD", chunk, offset);
+		return simple_instruction("OP_SET_FIELD", offset);
 	case OP_GET_FIELD:
-		return byte_instruction("OP_GET_FIELD", chunk, offset);
+		return simple_instruction("OP_GET_FIELD", offset);
 	case OP_RETURN:
 		return simple_instruction("OP_RETURN", offset);
 	case OP_CALL:

@@ -1,6 +1,4 @@
 var input = [1, 2, 3]
 
 var i = 0
-while input[i] != nil {
-  break
-}
+print(input[i])
