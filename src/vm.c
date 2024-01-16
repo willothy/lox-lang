@@ -695,7 +695,7 @@ static InterpretResult run() {
 		case OP_SET_FIELD: {
 			Value value = vm_pop();
 			Value key = vm_pop();
-			Value container = vm_pop();
+			Value container = vm_peek(0);
 
 			if (!set_field(container, key, value)) {
 				return INTERPRET_RUNTIME_ERROR;
