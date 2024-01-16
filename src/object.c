@@ -152,19 +152,23 @@ void object_print_indented(Value val, int depth) {
 		ValueArray *list = &AS_LIST(val)->values;
 		size_t count = list->count;
 		if (count > 1) {
-			printf("[\n");
+			// printf("[\n");
+			printf("[");
 		} else {
 			printf("[");
 		}
-		int elem_depth = count > 1 ? depth + 1 : depth;
+		// int elem_depth = count > 1 ? depth + 1 : depth;
+		int elem_depth = count > 1 ? depth : depth;
 		for (int i = 0; i < count; i++) {
 			value_print_indented(list->values[i], elem_depth);
 			if (i < count - 1) {
-				printf(",\n");
+				// printf(",\n");
+				printf(",");
 			}
 		}
 		if (count > 1) {
-			printf("\n]");
+			// printf("\n]");
+			printf("]");
 		} else  {
 			printf("]");
 		}
@@ -210,7 +214,7 @@ void function_print(Function *function) {
 		return;
 	}
 	if (function->name->length == 0){
-		printf("<fn>");
+		printf("<fn %p>", function);
 		return;
 	}
 	printf("<fn %.*s>", (int)function->name->length, function->name->chars);
@@ -260,7 +264,10 @@ size_t list_length(List *list) {
 
 void list_set(List *list, size_t index, Value value) {
 	if (index >= list->values.count) {
-		// FIXME: either error or grow table and fill with nils
+		while (index > list->values.count) {
+			list_push(list, NIL_VAL);
+		}
+		list_push(list, value);
 		return;
 	}
 	list->values.values[index] = value;

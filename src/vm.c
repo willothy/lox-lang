@@ -182,6 +182,8 @@ Value vm_peek(size_t distance) {
 }
 
 static void runtime_error(const char *format,...) {
+	printf("in function ");
+	value_print(OBJ_VAL(vm.running->current_frame->closure->function));
 	va_list args;
 	va_start(args, format);
 	vfprintf(stderr, format, args);
@@ -461,6 +463,33 @@ static bool do_yield(CallFrame **fr) {
 		// set the parent coroutine to active
 		vm.running = vm.running->parent;
 		*fr = vm.running->current_frame;
+		vm_pop();
+		vm_push(result);
+	} else {
+		if (vm.running == vm.main) {
+			runtime_error("Attempted to yield from the main coroutine.");
+			return false;
+		}
+		runtime_error("Unexpected toplevel coroutine - this is a bug.");
+		return false;
+	}
+
+	return true;
+}
+
+static bool do_await(CallFrame **fr) {
+	CallFrame *frame = *fr;
+	Value result = vm_pop();
+
+	if (vm.running->parent) {
+		vm.running->state = COROUTINE_PAUSED;
+		// clear the previous arguments so the coroutine can be resumed
+		vm.running->stack_top -= frame->closure->function->arity;
+		// set the parent coroutine to active
+		vm.running = vm.running->parent;
+		*fr = vm.running->current_frame;
+		// vm_pop();
+		// vm_push(result);
 	} else {
 		if (vm.running == vm.main) {
 			runtime_error("Attempted to yield from the main coroutine.");
@@ -685,9 +714,10 @@ static InterpretResult run() {
 		case OP_LIST: {
 			List *list = list_new();
 			uint8_t count = READ_BYTE();
-			while (count--) {
-				list_push(list, vm_pop());
+			for (uint8_t i = 0; i < count; i++) {
+				list_push(list, vm_peek(count - i - 1));
 			}
+			vm.running->stack_top -= count;
 			vm_push(OBJ_VAL(list));
 			break;
 		}
@@ -778,7 +808,15 @@ static InterpretResult run() {
 			break;
 		}
 		case OP_YIELD: {
-			do_yield(&frame);
+			if (!do_yield(&frame)) {
+				return INTERPRET_RUNTIME_ERROR;
+			}
+			break;
+		}
+		case OP_AWAIT: {
+			if (!do_await(&frame)) {
+				return INTERPRET_RUNTIME_ERROR;
+			}
 			break;
 		}
 		case OP_POP: {

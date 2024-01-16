@@ -653,10 +653,11 @@ static void return_statement() {
 	}
 
 	if (match(TOKEN_SEMICOLON))  {
-		emit_return();
+		emit_byte(OP_NIL);
+		emit_byte(OP_RETURN);
 	} else {
 		expression();
-		consume(TOKEN_SEMICOLON, "Expect '\\n' after return value.");
+		match(TOKEN_SEMICOLON);
 		emit_byte(OP_RETURN);
 	}
 }
@@ -985,12 +986,24 @@ static void await(bool can_assign) {
 	emit_byte(OP_AWAIT);
 }
 
+static void index_(bool can_assign) {
+	expression();
+	consume(TOKEN_RIGHT_BRACKET, "Expect ']' after index.");
+
+	if (can_assign && match(TOKEN_EQUAL)) {
+		expression();
+		emit_byte(OP_SET_FIELD);
+	} else {
+		emit_byte(OP_GET_FIELD);
+	}
+}
+
 ParseRule rules[] = {
 	[TOKEN_LEFT_PAREN]    = {grouping, call,   PREC_CALL},
 	[TOKEN_RIGHT_PAREN]   = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_LEFT_BRACE]    = {dict,     NULL,   PREC_NONE},
 	[TOKEN_RIGHT_BRACE]   = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_LEFT_BRACKET]  = {list,     NULL,   PREC_NONE},       //new
+	[TOKEN_LEFT_BRACKET]  = {list,     index_, PREC_CALL},       //new
 	[TOKEN_RIGHT_BRACKET] = {NULL,     NULL,   PREC_NONE},       //new
 	[TOKEN_COMMA]         = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_DOT]           = {NULL,     dot,    PREC_CALL},
