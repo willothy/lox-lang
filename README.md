@@ -8,6 +8,7 @@ Features:
 - NaN Boxing
 - Closures
 - GC
+- Coroutines and generators
 
 Future goals:
 
@@ -15,7 +16,7 @@ Future goals:
 - Native objects
 - Lua-like tables
 - Metaprogramming / metatables
-- Coroutines and channels
+- Channels as coroutine wakers
 - Methods incl. methods for primitive types
 - Module system
 - Gradual typing (compile time checks only)
