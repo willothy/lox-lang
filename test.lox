@@ -1,14 +1,21 @@
-
-var p = co fun(x) {
-  while true {
-    yield print(x)
+fun collect(f) {
+  var i = 0
+  var r = []
+  var v = f()
+  while v != nil {
+    r[i] = v
+    i = i + 1
+    v = f()
   }
+  return r
 }
 
-p({
-  test: 5
+var input = [1, 2, 3]
+
+var i = 0
+var x = collect(fun() {
+        var v = input[i]
+        i = i + 1
+        return v
 })
-
-for var i = 0; i < 10; i = i + 1 {
-  p(i)
-}
+print(x)
