@@ -27,54 +27,50 @@ void value_array_free(ValueArray *array) {
 	value_array_init(array);
 }
 
-void value_print_indented(Value value, int indent) {
+void value_fprint_indented(FILE *stream, Value value, int indent) {
 	for (int i = 0; i < indent; i++) {
-		printf("  ");
+		fprintf(stream, "  ");
 	}
 
 	if (IS_BOOL(value)) {
-		printf(AS_BOOL(value) ? "true" : "false");
+		fprintf(stream, AS_BOOL(value) ? "true" : "false");
 	} else if (IS_NIL(value)) {
-		printf("nil");
+		fprintf(stream, "nil");
 	} else if (IS_NUMBER(value)) {
-		printf("%g", AS_NUMBER(value));
+		fprintf(stream, "%g", AS_NUMBER(value));
 	} else if (IS_OBJ(value)) {
-		object_print_indented(value, indent);
+		object_fprint_indented(stream, value, indent);
+	}
+}
+
+void value_print_indented(Value value, int indent) {
+	value_fprint_indented(stdout, value, indent);
+}
+
+void value_fprint(FILE *stream, Value value) {
+	if (IS_BOOL(value)) {
+		fprintf(stream, AS_BOOL(value) ? "true" : "false");
+	} else if (IS_NIL(value)) {
+		fprintf(stream, "nil");
+	} else if (IS_NUMBER(value)) {
+		fprintf(stream, "%g", AS_NUMBER(value));
+	} else if (IS_OBJ(value)) {
+		object_fprint(stream, value);
 	}
 }
 
 void value_print(Value value) {
-#ifdef NAN_BOXING
-	if (IS_BOOL(value)) {
-		printf(AS_BOOL(value) ? "true" : "false");
-	} else if (IS_NIL(value)) {
-		printf("nil");
-	} else if (IS_NUMBER(value)) {
-		printf("%g", AS_NUMBER(value));
-	} else if (IS_OBJ(value)) {
-		object_print(value);
-	}
-#else
-	switch (value.type) {
-	case VAL_NUMBER:
-		printf("%g", AS_NUMBER(value));
-		break;
-	case VAL_BOOL:
-		printf("%s", AS_BOOL(value) ? "true" : "false");
-		break;
-	case VAL_NIL:
-		printf("nil");
-		break;
-	case VAL_OBJ:
-		object_print(value);
-		break;
-	}
-#endif
+	value_fprint(stdout, value);
+}
+
+
+void value_fprintln(FILE *stream, Value value) {
+	value_fprint(stream, value);
+	fprintf(stream, "\n");
 }
 
 void value_println(Value value) {
-	value_print(value);
-	printf("\n");
+	value_fprintln(stdout, value);
 }
 
 bool value_equal(Value a, Value b) {

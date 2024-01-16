@@ -182,29 +182,40 @@ Value vm_peek(size_t distance) {
 }
 
 static void runtime_error(const char *format,...) {
-	printf("in function ");
-	value_print(OBJ_VAL(vm.running->current_frame->closure->function));
+	// fprintf(stderr, "In function ");
+	// value_fprint(stderr, OBJ_VAL(vm.running->current_frame->closure->function));
+	fprintf(stderr, "\nRuntime error:\n");
 	va_list args;
 	va_start(args, format);
 	vfprintf(stderr, format, args);
 	va_end(args);
 	fputs("\n", stderr);
 
-	// TODO: stack trace for coroutines
+	Coroutine *co = vm.running;
+	bool is_main = co == vm.main;
 
-	// Print the stack trace
-	// for (size_t i = 0; i < vm.frame_count; i++) {
-	// 	CallFrame *frame = &vm.frames[i];
-	// 	Function *function = frame->closure->function;
-	// 	size_t inst = frame->ip - function->chunk.code - 1;
-	// 	Linenr line = line_info_get(&function->chunk.lines, inst);
-	// 	fprintf(stderr, "[line %zu] in ", line);
-	// 	if (function->name == NULL) {
-	// 		fprintf(stderr, "script\n");
-	// 	} else {
-	// 		fprintf(stderr, "%s()\n", function->name->chars);
-	// 	}
-	// }
+	while (co != NULL) {
+		// Only print coroutine name if the error happened in a non-main
+		// coroutine
+		if (!is_main) {
+			if (co == vm.main) {
+				printf("coroutine main:\n");
+			} else {
+				printf("coroutine %p:\n", co);
+			}
+		}
+		// Print the stack trace
+		for (size_t i = 0; i < co->frame_count; i++) {
+			CallFrame *frame = &co->frames[i];
+			Function *function = frame->closure->function;
+			size_t inst = frame->ip - function->chunk.code - 1;
+			Linenr line = line_info_get(&function->chunk.lines, inst);
+			fprintf(stderr, "[line %zu] in ", line);
+			function_fprint(stderr, function);
+			fputs("\n", stderr);
+		}
+		co = co->parent;
+	}
 
 	vm_reset();
 }

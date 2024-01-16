@@ -119,6 +119,9 @@ void value_array_free(ValueArray *array);
 void value_print(Value value);
 void value_println(Value value);
 void value_print_indented(Value value, int indent);
+void value_fprint(FILE *stream, Value value);
+void value_fprintln(FILE *stream, Value value);
+void value_fprint_indented(FILE *stream, Value value, int indent);
 String *value_to_string(Value value);
 
 bool value_equal(Value a, Value b);

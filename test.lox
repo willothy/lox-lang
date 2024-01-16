@@ -1,4 +1,8 @@
 var input = [1, 2, 3]
 
 var i = 0
-print(input[i])
+
+while input[i] != nil {
+  input[i] = input[i] + 1
+  i = i + 1
+}

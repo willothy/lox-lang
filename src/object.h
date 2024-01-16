@@ -256,11 +256,14 @@ Upvalue *upvalue_new(Value *slot);
 Closure *closure_new(Function *function);
 Function *function_new();
 void function_print(Function *function);
+void function_fprint(FILE *stream, Function *function);
 
 NativeFunction *native_new(NativeFnPtr function, uint8_t arity);
 
 const char *object_type_name(ObjectType type);
 void object_print(Value obj);
 void object_print_indented(Value obj, int indent);
+void object_fprint(FILE *stream, Value obj);
+void object_fprint_indented(FILE *stream, Value obj, int indent);
 
 #endif

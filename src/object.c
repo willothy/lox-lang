@@ -121,9 +121,9 @@ String *take_string(char *chars, size_t length) {
 	return alloc_string(chars, length, hash, true);
 }
 
-void object_print_indented(Value val, int depth) {
+void object_fprint_indented(FILE *stream, Value val, int depth) {
 	for (int i = 0; i < depth; i++) {
-		printf("  ");
+		fprintf(stream, "  ");
 	}
 
 	switch(OBJ_TYPE(val)) {
@@ -131,19 +131,19 @@ void object_print_indented(Value val, int depth) {
 		// Lox strings are not null-terminated and can be non-owned references to memory
 		// outside of the VM's heap. To print them, we need to use printf's precision
 		// specifier to print only the characters in the string.
-		printf("%.*s", (int)AS_STRING(val)->length, AS_CSTRING(val));
+		fprintf(stream, "%.*s", (int)AS_STRING(val)->length, AS_CSTRING(val));
 		break;
 	case OBJ_CLOSURE:
-		function_print(AS_CLOSURE(val)->function);
+		function_fprint(stream, AS_CLOSURE(val)->function);
 		break;
 	case OBJ_FUNCTION:
-		function_print(AS_FUNCTION(val));
+		function_fprint(stream, AS_FUNCTION(val));
 		break;
 	case OBJ_NATIVE:
-		printf("<native fn>");
+		fprintf(stream, "<native fn>");
 		break;
 	case OBJ_UPVALUE: // unreachable
-		printf("<upvalue>");
+		fprintf(stream, "<upvalue>");
 		break;
 	case OBJ_COROUTINE:
 		printf("<coroutine>");
@@ -153,24 +153,24 @@ void object_print_indented(Value val, int depth) {
 		size_t count = list->count;
 		if (count > 1) {
 			// printf("[\n");
-			printf("[");
+			fprintf(stream, "[");
 		} else {
-			printf("[");
+			fprintf(stream, "[");
 		}
 		// int elem_depth = count > 1 ? depth + 1 : depth;
 		int elem_depth = count > 1 ? depth : depth;
 		for (int i = 0; i < count; i++) {
-			value_print_indented(list->values[i], elem_depth);
+			value_fprint_indented(stream, list->values[i], elem_depth);
 			if (i < count - 1) {
 				// printf(",\n");
-				printf(",");
+				fprintf(stream, ",");
 			}
 		}
 		if (count > 1) {
 			// printf("\n]");
-			printf("]");
+			fprintf(stream, "]");
 		} else  {
-			printf("]");
+			fprintf(stream, "]");
 		}
 		break;
 	}
@@ -195,6 +195,14 @@ void object_print_indented(Value val, int depth) {
 	}
 }
 
+void object_fprint(FILE *stream, Value val) {
+	object_fprint_indented(stream, val, 0);
+}
+
+void object_print_indented(Value val, int depth) {
+	return object_fprint_indented(stdout, val, depth);
+}
+
 void object_print(Value val) {
 	object_print_indented(val, 0);
 }
@@ -209,15 +217,19 @@ Function *function_new() {
 }
 
 void function_print(Function *function) {
+	function_fprint(stdout, function);
+}
+
+void function_fprint(FILE *stream, Function *function) {
 	if (function->name == NULL) {
-		printf("<script>");
+		fprintf(stream, "<script>");
 		return;
 	}
 	if (function->name->length == 0){
-		printf("<fn %p>", function);
+		fprintf(stream, "<fn %p>", function);
 		return;
 	}
-	printf("<fn %.*s>", (int)function->name->length, function->name->chars);
+	fprintf(stream, "<fn %.*s>", (int)function->name->length, function->name->chars);
 }
 
 NativeFunction *native_new(NativeFnPtr function, uint8_t arity) {
