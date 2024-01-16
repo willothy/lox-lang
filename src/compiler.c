@@ -574,12 +574,60 @@ static void block() {
 	consume(TOKEN_RIGHT_BRACE, "Expect '}' after block.");
 }
 
+uint32_t current_continue_jump = 0;
+uint32_t current_break_jump = 0;
+
+typedef struct {
+	uint32_t depth;
+	size_t ip;
+} Break;
+
+Break breaks[UINT8_COUNT];
+size_t break_count = 0;
+
+static void push_break(uint32_t depth, size_t ip) {
+	if (current->local_count == UINT8_COUNT) {
+		error("Too many breaks in loop.");
+	}
+	Break *brk = &breaks[break_count++];
+	brk->depth = depth;
+	brk->ip = ip;
+}
+
+static Break pop_break() {
+	return breaks[--break_count];
+}
+
+static Break peek_break() {
+	if (break_count == 0) {
+		return (Break){ .depth = 0, .ip = 0 };
+	}
+	return breaks[break_count-1];
+}
+
+static void patch_breaks(uint32_t depth, uint32_t offset) {
+	while (break_count > 0 && peek_break().depth >= depth) {
+		Break brk = pop_break();
+		uint8_t *op = &current_chunk()->code[brk.ip]-4;
+		offset = current_chunk()->count - brk.ip;
+
+		op[3] = offset & 0xff;
+		op[2] = (offset >> 8) & 0xff;
+		op[1] = (offset >> 16) & 0xff;
+		op[0] = (offset >> 24) & 0xff;
+	}
+}
+
 static void while_statement() {
 	size_t loop_start = current_chunk()->count;
 
 	expression();
 
+	uint32_t cont, brk = current_continue_jump, current_break_jump;
+
 	uint32_t exit_jump = emit_jump(OP_JUMP_IF_FALSE);
+	current_break_jump = exit_jump;
+	current_continue_jump = loop_start;
 	emit_byte(OP_POP);
 	begin_scope();
 	consume(TOKEN_LEFT_BRACE, "Expect '{' after while condition.");
@@ -587,8 +635,29 @@ static void while_statement() {
 	end_scope();
 	emit_loop(loop_start);
 
+	patch_breaks(current->scope_depth + 1, current_chunk()->count - exit_jump);
 	patch_jump(exit_jump);
 	emit_byte(OP_POP);
+
+	current_continue_jump = cont;
+	current_break_jump = brk;
+}
+
+static void break_statement() {
+	if (current->scope_depth == 0) {
+		error("Cannot break from top-level code.");
+	}
+	consume(TOKEN_SEMICOLON, "Expect ';' after 'break'.");
+	emit_jump(OP_JUMP);
+	push_break(current->scope_depth, current_chunk()->count);
+}
+
+static void continue_statement() {
+	if (current->scope_depth == 0) {
+		error("Cannot continue outside of a loop.");
+	}
+	consume(TOKEN_SEMICOLON, "Expect ';' after 'continue'.");
+	emit_loop(current_continue_jump);
 }
 
 static void named_variable(Token name, bool can_assign);
@@ -705,6 +774,10 @@ static void statement() {
 		while_statement();
 	} else if (match(TOKEN_YIELD)) {
 		yield_statement();
+	} else if (match(TOKEN_BREAK)) {
+		break_statement();
+	} else if (match(TOKEN_CONTINUE)) {
+		continue_statement();
 	} else if (match(TOKEN_LEFT_BRACE)) {
 		begin_scope();
 		block();
@@ -1035,7 +1108,7 @@ ParseRule rules[] = {
 	[TOKEN_ELSE]          = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_FALSE]         = {literal,  NULL,   PREC_NONE},
 	[TOKEN_FOR]           = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_FUN]           = {anon_fun,     NULL,   PREC_NONE},
+	[TOKEN_FUN]           = {anon_fun, NULL,   PREC_NONE},
 	[TOKEN_IF]            = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_NIL]           = {literal,  NULL,   PREC_NONE},
 	[TOKEN_OR]            = {NULL,     or_,    PREC_OR},
