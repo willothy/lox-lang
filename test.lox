@@ -1,21 +1,8 @@
-fun collect(f) {
-  var i = 0
-  var r = []
-  var v = f()
-  while v != nil {
-    r[i] = v
-    i = i + 1
-    v = f()
-  }
-  return r
-}
-
 var input = [1, 2, 3]
 
 var i = 0
-var x = collect(fun() {
-        var v = input[i]
-        i = i + 1
-        return v
-})
-print(x)
+while input[i] != nil {
+  input[i] = input[i] + 1
+  print(input[i])
+  i = i + 1
+}
