@@ -4,6 +4,7 @@
 #include "compiler.h"
 #include "value.h"
 #include "vm.h"
+#include "repl.h"
 
 #ifdef DEBUG_LOG_GC
 #include <stdio.h>
@@ -137,6 +138,7 @@ static void mark_roots() {
 	table_mark(&vm.globals);
 
 	compiler_mark_roots();
+	repl_mark_roots();
 }
 
 static void mark_array(ValueArray *array) {

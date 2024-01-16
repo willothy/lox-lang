@@ -5,5 +5,6 @@
 
 void disassemble_chunk(Chunk *chunk, const char *name);
 size_t disassemble_instruction(Chunk *chunk, size_t offset);
+uint8_t instruction_length(Chunk *chunk, size_t offset);
 
 #endif

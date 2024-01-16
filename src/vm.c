@@ -363,7 +363,7 @@ static bool get_field(Value container, Value key) {
 	return false;
 }
 
-static bool call(Closure *closure, uint8_t argc) {
+bool vm_call(Closure *closure, uint8_t argc) {
 #ifdef DYNAMIC_TYPE_CHECKING
 	if (argc != closure->function->arity) {
 		runtime_error("Expected %d arguments but got %d.", closure->function->arity, argc);
@@ -441,7 +441,7 @@ static bool call_value(Value callee, uint8_t argc) {
 	if (IS_OBJ(callee)) {
 		switch (OBJ_TYPE(callee)) {
 		case OBJ_CLOSURE:
-			return call(AS_CLOSURE(callee), argc);
+			return vm_call(AS_CLOSURE(callee), argc);
 		case OBJ_NATIVE:
 			return call_native(AS_NATIVE(callee), argc);
 		case OBJ_COROUTINE:
@@ -510,17 +510,24 @@ static bool do_await(CallFrame **fr) {
 	return true;
 }
 
-static bool do_return(CallFrame **fr) {
+static bool do_return(CallFrame **fr, bool repl) {
 	CallFrame *frame = *fr;
 	Value result = vm_pop();
 	close_upvalues(frame->slots);
 	vm.running->frame_count--;
+
+	Coroutine *co = vm.running;
 
 	if (vm.running->frame_count == 0) {
 		vm.running->state = COROUTINE_COMPLETE;
 		if (vm.running->parent) {
 			vm.running = vm.running->parent;
 		} else {
+			if (repl) {
+				co->frame_count++;
+				vm.running->state = COROUTINE_READY;
+				return true;
+			}
 #ifdef DEBUG_TRACE_EXECUTION
 			printf("stack:  ");
 			for (Value* slot = vm.running->stack; slot < vm.running->stack_top; slot++) {
@@ -530,7 +537,7 @@ static bool do_return(CallFrame **fr) {
 			}
 			printf("\n");
 #endif
-			vm_reset();
+			// vm_reset();
 			return true;
 		}
 	}
@@ -541,7 +548,7 @@ static bool do_return(CallFrame **fr) {
 	return false;
 }
 
-static InterpretResult run() {
+InterpretResult vm_run(bool repl) {
 	// TODO: Implement register ip optimization
 	// register uint8_t *ip = vm.chunk->code;
 	CallFrame *frame = &vm.running->frames[vm.running->frame_count - 1];
@@ -811,7 +818,7 @@ static InterpretResult run() {
 			vm_pop();
 			break;
 		case OP_RETURN: {
-			if (do_return(&frame)) {
+			if (do_return(&frame, repl)) {
 				return INTERPRET_OK;
 			}
 			break;
@@ -951,12 +958,15 @@ static InterpretResult run() {
 	#undef BINARY_OP
 }
 
+
 InterpretResult vm_interpret(Function *function) {
 	vm_push(OBJ_VAL(function));
 	Closure *closure = closure_new(function);
 	vm_pop();
-	vm_push(OBJ_VAL(closure));
-	call(closure, 0);
+	if (vm.running->stack_top == vm.running->stack) {
+		vm_push(OBJ_VAL(closure));
+	}
+	vm_call(closure, 0);
 
-	return run();
+	return vm_run(false);
 }

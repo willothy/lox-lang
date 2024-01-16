@@ -1,6 +1,7 @@
 #include <stdlib.h>
 
 #include "chunk.h"
+#include "debug.h"
 #include "memory.h"
 #include "vm.h"
 
@@ -98,4 +99,20 @@ uint32_t chunk_write_constant(Chunk *chunk, Value constant, Linenr line) {
 	}
 
 	return index;
+}
+
+uint32_t chunk_last_instruction_len(Chunk *chunk) {
+	uint32_t last = 0;
+	uint32_t total = 0;
+
+	size_t count = chunk->count;
+
+	while (total < count) {
+		last = total;
+		total += instruction_length(chunk, last);
+	}
+
+	printf("last: %d, total: %d, count: %zu\n", last, total, count);
+
+	return total - last;
 }

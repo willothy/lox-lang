@@ -44,37 +44,6 @@ typedef struct  {
 	Precedence precedence;
 } ParseRule;
 
-typedef struct {
-	Token name;
-	uint32_t depth;
-	bool is_captured;
-} Local;
-
-typedef struct {
-	uint32_t index;
-	bool is_local;
-} UpvalueMeta;
-
-typedef enum {
-	FN_TYPE_NAMED,
-	FN_TYPE_ANONYMOUS,
-	FN_TYPE_SCRIPT,
-} FunctionType;
-
-typedef struct Compiler {
-	struct Compiler *enclosing;
-
-	Function *function;
-	FunctionType type;
-
-	Local locals[UINT8_COUNT];
-	uint32_t local_count;
-
-	UpvalueMeta upvalues[UINT8_COUNT];
-	uint32_t upvalue_count;
-
-	uint32_t scope_depth;
-} Compiler;
 
 Parser parser;
 Compiler *current = NULL;
@@ -200,7 +169,7 @@ static void consume(TokenType type, const char* message) {
 	error_at_current(message);
 }
 
-static void emit_byte(uint8_t byte) {
+void emit_byte(uint8_t byte) {
 	chunk_write(current_chunk(), byte, prev_token().line);
 }
 
@@ -263,12 +232,12 @@ static void parser_init() {
 	parser.panic_mode = false;
 }
 
-static void compiler_init(Compiler *compiler, FunctionType type) {
+void compiler_init(Compiler *compiler, FunctionType type) {
 	compiler->enclosing = current;
 	compiler->type = type;
-	compiler->local_count = 0;
 	compiler->scope_depth = 0;
 	compiler->function = function_new();
+	compiler->local_count = 0;
 	current = compiler;
 
 	switch(type) {
@@ -288,7 +257,7 @@ static void compiler_init(Compiler *compiler, FunctionType type) {
 	local->name.length = 0;
 }
 
-static Function *end_compilation() {
+Function *end_compilation() {
 	emit_return();
 	Function *function = current->function;
 
@@ -314,7 +283,6 @@ static Function *end_compilation() {
 static void expression();
 static void binary(bool can_assign);
 static void statement();
-static void declaration();
 static void block();
 static ParseRule *get_rule(TokenType type);
 
@@ -503,6 +471,7 @@ static void var_declaration() {
 
 static void function(FunctionType type) {
 	Compiler compiler;
+	Local locals[UINT8_COUNT];
 	compiler_init(&compiler, type);
 	begin_scope();
 
@@ -552,7 +521,7 @@ static void coroutine_declaration() {
 	emit_byte(OP_COROUTINE);
 }
 
-static void declaration() {
+void declaration() {
 	if (match(TOKEN_FUN)) {
 		fun_declaration();
 	} else if (match(TOKEN_VAR)) {
@@ -1156,6 +1125,13 @@ static void binary(bool can_assign) {
 	}
 }
 
+void compiler_mark_roots() {
+	Compiler *compiler = current;
+	while (compiler != NULL) {
+		mark_object((Object*)compiler->function);
+		compiler = compiler->enclosing;
+	}
+}
 
 Function* compile(char *src) {
 	scanner_init(src);
@@ -1174,10 +1150,11 @@ Function* compile(char *src) {
 	return parser.had_error ? NULL : function;
 }
 
-void compiler_mark_roots() {
-	Compiler *compiler = current;
-	while (compiler != NULL) {
-		mark_object((Object*)compiler->function);
-		compiler = compiler->enclosing;
+void compile_line(char *src) {
+	scanner_init(src);
+	parser_init();
+	while (!match(TOKEN_EOF)) {
+		declaration();
 	}
+	emit_return();
 }

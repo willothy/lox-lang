@@ -1,4 +1,10 @@
+#include "chunk.h"
 #include "compiler.h"
+#include "debug.h"
+#include "scanner.h"
+#include "table.h"
+#include "repl.h"
+#include "value.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -19,22 +25,6 @@ static Function *try_compile(char *src) {
 		exit(65);
 	}
 	return function;
-}
-
-static void repl() {
-	char line[1024];
-	for ( ; ; ) {
-		printf("> ");
-
-		if (!fgets(line, sizeof(line), stdin) || feof(stdin)) {
-			printf("\n");
-			break;
-		}
-
-		Function *f = compile(line);
-
-		if (f) vm_interpret(f);
-	}
 }
 
 static char *read_file(const char *path) {

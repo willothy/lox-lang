@@ -39,7 +39,7 @@ static size_t byte_long_instruction(const char* name, Chunk *chunk, int offset) 
 	idx |= (uint16_t)chunk->code[offset + 2] << 8;
 	idx |= (uint16_t)chunk->code[offset + 3] << 16;
 	printf("%-16s %4d\n", name, idx);
-	return offset + 2;
+	return offset + 4;
 }
 
 static size_t jump_instruction(const char* name, int sign, Chunk *chunk, int offset) {
@@ -58,6 +58,86 @@ void disassemble_chunk(Chunk *chunk, const char *name) {
 
 	for (size_t offset = 0; offset < chunk->count;) {
 		offset = disassemble_instruction(chunk, offset);
+	}
+}
+
+uint8_t instruction_length(Chunk *chunk, size_t offset) {
+	uint8_t instruction = chunk->code[offset];
+	switch (instruction) {
+	case OP_CLOSURE: {
+		offset++;
+		uint8_t constant = chunk->code[offset++];
+
+		uint8_t rv = 2;
+		Function *function = AS_FUNCTION(chunk->constants.values[constant]);
+		for (int i = 0; i < function->upvalue_count; i++) {
+			rv += 2;
+		}
+
+		return rv;
+	}
+	case OP_CLOSURE_LONG: {
+		offset++;
+		uint32_t constant = chunk->code[offset++];
+		constant |= chunk->code[offset++] << 8;
+		constant |= chunk->code[offset++] << 16;
+
+		uint8_t rv = 4;
+		Function *function = AS_FUNCTION(chunk->constants.values[constant]);
+		for (int i = 0; i < function->upvalue_count; i++) {
+			rv += 2;
+		}
+
+		return rv;
+	}
+	case OP_DICT:
+	case OP_CALL:
+	case OP_LIST:
+	case OP_GET_UPVALUE:
+	case OP_SET_UPVALUE:
+	case OP_CONSTANT:
+	case OP_DEFINE_GLOBAL:
+	case OP_GET_GLOBAL:
+	case OP_SET_GLOBAL:
+	case OP_GET_LOCAL:
+	case OP_SET_LOCAL:
+		return 2;
+	case OP_DICT_LONG:
+	case OP_LIST_LONG:
+	case OP_CONSTANT_LONG:
+	case OP_DEFINE_GLOBAL_LONG:
+	case OP_GET_GLOBAL_LONG:
+	case OP_SET_GLOBAL_LONG:
+	case OP_GET_LOCAL_LONG:
+	case OP_SET_LOCAL_LONG:
+		return 4;
+	case OP_JUMP:
+	case OP_JUMP_IF_FALSE:
+	case OP_LOOP:
+		return 5;
+	case OP_COROUTINE:
+	case OP_YIELD:
+	case OP_AWAIT:
+	case OP_NIL:
+	case OP_TRUE:
+	case OP_FALSE:
+	case OP_NOT:
+	case OP_EQUAL:
+	case OP_GREATER:
+	case OP_LESS:
+	case OP_ADD:
+	case OP_SUBTRACT:
+	case OP_MULTIPLY:
+	case OP_DIVIDE:
+	case OP_NEGATE:
+	case OP_SET_FIELD:
+	case OP_GET_FIELD:
+	case OP_RETURN:
+	case OP_CLOSE_UPVALUE:
+	case OP_POP:
+		return 1;
+	default:
+		return 1;
 	}
 }
 

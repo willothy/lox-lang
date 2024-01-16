@@ -103,5 +103,6 @@ void chunk_free(Chunk *chunk);
 
 uint32_t chunk_add_constant(Chunk *chunk, Value value);
 uint32_t chunk_write_constant(Chunk *chunk, Value constant, Linenr line);
+uint32_t chunk_last_instruction_len(Chunk *chunk);
 
 #endif

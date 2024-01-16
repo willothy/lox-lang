@@ -45,6 +45,17 @@ static Entry *table_find_entry(Entry *entries, size_t capacity, String *key) {
 	}
 }
 
+bool table_has_key(Table *table, String *key) {
+	if (table->count == 0) {
+		return false;
+	}
+	Entry *entry = table_find_entry(table->entries, table->capacity, key);
+	if (entry->key == NULL) {
+		return false;
+	}
+	return entry->value != NIL_VAL;
+}
+
 static void adjust_capacity(Table *table, size_t capacity) {
 	Entry *entries = ALLOCATE(Entry, capacity);
 	for (size_t i = 0; i < capacity; i++) {

@@ -47,6 +47,8 @@ void vm_free();
 void vm_push(Value value);
 Value vm_pop();
 Value vm_peek(size_t distance);
+bool vm_call(Closure *closure, uint8_t argc);
+InterpretResult vm_run(bool repl);
 
 InterpretResult vm_interpret(Function *function);
 
